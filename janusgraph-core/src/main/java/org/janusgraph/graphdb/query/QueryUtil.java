@@ -310,6 +310,9 @@ public class QueryUtil {
         do {
             exhaustedResults = true;
             results = null;
+            // 在这个地方fire query call
+            // 类似于slow start, 比如说要10个结果，就从2 * 10 = 20开始作为sublimit尝试，用第一个query的结果作基准，
+            // 其他query的结果来filter，（相当于取交集），如果最后结果不到10个，就翻倍从40个作为sublimit重新query
             for (final IndexCall<R> call : retrievals) {
                 Collection<R> subResult;
                 try {

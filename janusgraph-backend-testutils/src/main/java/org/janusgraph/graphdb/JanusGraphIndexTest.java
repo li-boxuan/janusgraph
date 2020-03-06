@@ -851,6 +851,45 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
     }
 
     @Test
+    public void testCompositeIndexing() {
+        final PropertyKey name = makeKey("name", String.class);
+        final PropertyKey weight = makeKey("weight", Double.class);
+        final PropertyKey text = makeKey("text", String.class);
+        makeKey("flag", Boolean.class);
+
+        mgmt.buildIndex("nameIndex", Vertex.class).addKey(name).buildCompositeIndex();
+        mgmt.buildIndex("weightIndex", Vertex.class).addKey(weight).buildCompositeIndex();
+        mgmt.commit();
+
+        final int numV = 100;
+        final String[] strings = {"houseboat", "humanoid", "differential", "extraordinary"};
+        final String[] stringsTwo = new String[strings.length];
+        for (int i = 0; i < strings.length; i++) stringsTwo[i] = strings[i] + " " + strings[i];
+        final int modulo = 5;
+        final int divisor = modulo * strings.length;
+
+        for (int i = 0; i < numV; i++) {
+            final JanusGraphVertex v = tx.addVertex();
+            v.property("name", strings[i % strings.length]);
+            v.property("text", strings[i % strings.length]);
+            v.property("weight", (i % modulo) + 0.5);
+            v.property("flag", true);
+        }
+        tx.commit();
+
+        GraphTraversalSource g = graph.traversal();
+        long totalCount = g.V().has("name", "houseboat")
+            .count()
+            .next();
+        long limitCount = g.V().has("name", "houseboat")
+            .has("weight", 0.5)
+            .limit(1)
+            .count()
+            .next();
+        graph.tx().rollback();
+    }
+
+    @Test
     public void testCompositeAndMixedIndexing() {
         final PropertyKey name = makeKey("name", String.class);
         final PropertyKey weight = makeKey("weight", Double.class);

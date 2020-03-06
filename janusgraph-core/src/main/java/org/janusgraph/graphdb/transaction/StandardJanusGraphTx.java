@@ -1328,6 +1328,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
                     retrievals.add(limit -> {
                         final JointIndexQuery.Subquery adjustedQuery = subquery.updateLimit(limit);
                         try {
+                            // 这里只是组装函数，并没有真正执行
                             return indexCache.get(adjustedQuery,
                                 () -> QueryProfiler.profile(subquery.getProfiler(), adjustedQuery, q -> indexSerializer.query(q, txHandle).collect(Collectors.toList())));
                         } catch (Exception e) {
