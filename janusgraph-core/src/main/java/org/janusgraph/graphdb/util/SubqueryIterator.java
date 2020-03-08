@@ -50,7 +50,7 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
 
     private boolean isTimerRunning;
 
-    public SubQueryIterator(List<JointIndexQuery.Subquery> queries, IndexSerializer indexSerializer,
+    public SubqueryIterator(List<JointIndexQuery.Subquery> queries, IndexSerializer indexSerializer,
                             BackendTransaction tx, Cache<JointIndexQuery.Subquery, List<Object>> indexCache,
                             int limit, Function<Object, ? extends JanusGraphElement> conversionFunction) {
         Preconditions.checkArgument(!queries.isEmpty());
@@ -140,7 +140,6 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
             } while (resultsExhaustedCount < queries.size() && results.size() < limit);
             elementIterator = results.stream().map(conversionFunction).map(r -> (JanusGraphElement) r).iterator();
         }
-
     }
 
     public SubqueryIterator(JointIndexQuery.Subquery subQuery, IndexSerializer indexSerializer, BackendTransaction tx,
