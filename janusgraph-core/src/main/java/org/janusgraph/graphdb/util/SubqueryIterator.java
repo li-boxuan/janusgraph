@@ -38,8 +38,6 @@ import com.google.common.cache.Cache;
  */
 public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoCloseable {
 
-    private final JointIndexQuery.Subquery subQuery;
-
     private final Cache<JointIndexQuery.Subquery, List<Object>> indexCache;
 
     private Iterator<? extends JanusGraphElement> elementIterator;
@@ -70,6 +68,7 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
             }
             elementIterator = stream.limit(limit).map(conversionFunction).map(r -> (JanusGraphElement) r).iterator();
         } else {
+            // TODO: if limit is UNLIMITED, we stream the first query and fetch the rest queries just as the previous logic
             // For multiple queries, we progressively fetch results and take intersections
             final int multiplier = Math.min(16, (int) Math.pow(2, queries.size() - 1));
             int baseSubLimit = Math.min(limit * multiplier, Query.NO_LIMIT);
@@ -89,6 +88,7 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
 
                 // Pick up suitable queries to execute
                 for (int i = 0; i < queries.size(); i++) {
+                    final int idx = i;
                     if (resultsExhausted[i]) continue;
                     if (Math.abs(scores[i] - lowestScore) > 1e-2) continue;
                     JointIndexQuery.Subquery subQuery = queries.get(i);
@@ -98,10 +98,10 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                     // TODO: profile the query
                     // TODO: leverage the scrolling capability of external indexing backends rather than throw away old results
                     indexSerializer.query(subQuery.updateLimit(subLimit), tx).skip(offsets[i]).forEach(result -> {
-                        offsets[i]++;
+                        offsets[idx]++;
                         List<Integer> queryNumbers = subResultToQueryMap.get(result);
                         if (queryNumbers == null) queryNumbers = new ArrayList<>();
-                        queryNumbers.add(i);
+                        queryNumbers.add(idx);
                         subResultToQueryMap.put(result, queryNumbers);
                     });
                     if (offsets[i] >= subLimit) {
@@ -142,32 +142,32 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
         }
     }
 
-    public SubqueryIterator(JointIndexQuery.Subquery subQuery, IndexSerializer indexSerializer, BackendTransaction tx,
-            Cache<JointIndexQuery.Subquery, List<Object>> indexCache, int limit,
-            Function<Object, ? extends JanusGraphElement> function, List<Object> otherResults) {
-        this.subQuery = subQuery;
-        this.indexCache = indexCache;
-        final List<Object> cacheResponse = indexCache.getIfPresent(subQuery);
-        final Stream<?> stream;
-        if (cacheResponse != null) {
-            stream = cacheResponse.stream();
-        } else {
-            try {
-                currentIds = new ArrayList<>();
-                profiler = QueryProfiler.startProfile(subQuery.getProfiler(), subQuery);
-                isTimerRunning = true;
-                stream = indexSerializer.query(subQuery, tx).peek(r -> currentIds.add(r));
-            } catch (final Exception e) {
-                throw new JanusGraphException("Could not call index", e.getCause());
-            }
-        }
-        elementIterator = stream.filter(e -> otherResults == null || otherResults.contains(e)).limit(limit).map(function).map(r -> (JanusGraphElement) r).iterator();
-    }
+//    public SubqueryIterator(JointIndexQuery.Subquery subQuery, IndexSerializer indexSerializer, BackendTransaction tx,
+//            Cache<JointIndexQuery.Subquery, List<Object>> indexCache, int limit,
+//            Function<Object, ? extends JanusGraphElement> function, List<Object> otherResults) {
+//        this.subQuery = subQuery;
+//        this.indexCache = indexCache;
+//        final List<Object> cacheResponse = indexCache.getIfPresent(subQuery);
+//        final Stream<?> stream;
+//        if (cacheResponse != null) {
+//            stream = cacheResponse.stream();
+//        } else {
+//            try {
+//                currentIds = new ArrayList<>();
+//                profiler = QueryProfiler.startProfile(subQuery.getProfiler(), subQuery);
+//                isTimerRunning = true;
+//                stream = indexSerializer.query(subQuery, tx).peek(r -> currentIds.add(r));
+//            } catch (final Exception e) {
+//                throw new JanusGraphException("Could not call index", e.getCause());
+//            }
+//        }
+//        elementIterator = stream.filter(e -> otherResults == null || otherResults.contains(e)).limit(limit).map(function).map(r -> (JanusGraphElement) r).iterator();
+//    }
 
     @Override
     public boolean hasNext() {
         if (!elementIterator.hasNext() && currentIds != null) {
-            indexCache.put(subQuery, currentIds);
+//            indexCache.put(subQuery, currentIds);
             profiler.stopTimer();
             isTimerRunning = false;
             profiler.setResultSize(currentIds.size());
