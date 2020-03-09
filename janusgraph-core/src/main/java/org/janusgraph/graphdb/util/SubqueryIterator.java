@@ -58,6 +58,7 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
         if (queries.size() == 1) {
             // For a single query, we are safe to execute it with the limit constraint
             JointIndexQuery.Subquery subquery = queries.get(0).updateLimit(limit);
+            // TODO: refactor how we make use of cache and profiler
             final List<Object> cacheResponse = indexCache.getIfPresent(subquery);
             if (cacheResponse != null) {
                 stream = cacheResponse.stream();
@@ -67,8 +68,18 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                 stream = indexSerializer.query(subquery, tx); // TODO: add to currentIds for cache purpose
             }
             elementIterator = stream.limit(limit).map(conversionFunction).map(r -> (JanusGraphElement) r).iterator();
+        } else if (limit >= Query.NO_LIMIT) {
+            // if there is no limit, we lazily stream the first query and eagerly execute the rest of queries all at once
+            JointIndexQuery.Subquery subquery = queries.get(0);
+            stream = indexSerializer.query(subquery, tx);
+            List<Object> otherResults = indexSerializer.query(queries.get(0), tx).collect(Collectors.toList());
+            for (int i = 1; i < queries.size(); i++) {
+                Set<Object> subResult = indexSerializer.query(queries.get(i), tx).collect(Collectors.toSet());
+                otherResults.retainAll(subResult);
+                // TODO: add to cache
+            }
+            elementIterator = stream.filter(e -> otherResults.contains(e)).map(conversionFunction).map(r -> (JanusGraphElement) r).iterator();
         } else {
-            // TODO: if limit is UNLIMITED, we stream the first query and fetch the rest queries just as the previous logic
             // For multiple queries, we progressively fetch results and take intersections
             final int multiplier = Math.min(16, (int) Math.pow(2, queries.size() - 1));
             int baseSubLimit = Math.min(limit * multiplier, Query.NO_LIMIT);
@@ -80,17 +91,13 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
             int resultsExhaustedCount = 0;
             List<Object> results = new ArrayList<>();
             do {
-                // Retrieve the lowest score
-                double lowestScore = Double.MAX_VALUE;
-                for (double score : scores) {
-                    lowestScore = Math.min(lowestScore, score);
-                }
-
+                double scoreSum = 0;
+                for (double score : scores) scoreSum += score;
                 // Pick up suitable queries to execute
                 for (int i = 0; i < queries.size(); i++) {
                     final int idx = i;
                     if (resultsExhausted[i]) continue;
-                    if (Math.abs(scores[i] - lowestScore) > 1e-2) continue;
+                    if (scores[i] > scoreSum / queries.size()) continue;
                     JointIndexQuery.Subquery subQuery = queries.get(i);
                     // TODO: utilise and save into cache
                     int subLimit = (int) Math.min(Query.NO_LIMIT, Math.max(baseSubLimit,
@@ -111,7 +118,7 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                 }
 
                 // Process results and do intersection
-                for(Iterator<Map.Entry<Object, List<Integer>>> it = subResultToQueryMap.entrySet().iterator(); it.hasNext(); ) {
+                for (Iterator<Map.Entry<Object, List<Integer>>> it = subResultToQueryMap.entrySet().iterator(); it.hasNext(); ) {
                     Map.Entry<Object, List<Integer>> entry = it.next();
                     if (entry.getValue().size() == queries.size()) {
                         // this particular result satisfies every index query
@@ -135,7 +142,6 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                             scores[idx] += Math.log(queryNoList.size());
                         }
                     }
-                    // TODO: need to take offset into account; we don't want to focus too much on one particular query
                 }
 
             } while (resultsExhaustedCount < queries.size() && results.size() < limit);
