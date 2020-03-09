@@ -73,7 +73,7 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
             final int multiplier = Math.min(16, (int) Math.pow(2, queries.size() - 1));
             int baseSubLimit = Math.min(limit * multiplier, Query.NO_LIMIT);
             // A mapping of result to a number list of queries that contain this result
-            Map<Object, List<Integer>> subResultToQueryMap = new HashMap<>();
+            Map<Object, List<Integer>> subResultToQueryMap = new LinkedHashMap<>();
             double[] scores = new double[queries.size()];
             int[] offsets = new int[queries.size()];
             boolean[] resultsExhausted = new boolean[queries.size()];
