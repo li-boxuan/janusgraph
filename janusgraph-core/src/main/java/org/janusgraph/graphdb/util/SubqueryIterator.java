@@ -111,11 +111,12 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                 }
 
                 // Process results and do intersection
-                for (Map.Entry<Object, List<Integer>> entry : subResultToQueryMap.entrySet()) {
+                for(Iterator<Map.Entry<Object, List<Integer>>> it = subResultToQueryMap.entrySet().iterator(); it.hasNext(); ) {
+                    Map.Entry<Object, List<Integer>> entry = it.next();
                     if (entry.getValue().size() == queries.size()) {
                         // this particular result satisfies every index query
                         if (results.size() < limit) results.add(entry.getKey());
-                        subResultToQueryMap.remove(entry.getKey());
+                        it.remove();
                     }
                 }
 
