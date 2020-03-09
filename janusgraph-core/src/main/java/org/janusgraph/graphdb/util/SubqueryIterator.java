@@ -104,7 +104,7 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                         queryNumbers.add(idx);
                         subResultToQueryMap.put(result, queryNumbers);
                     });
-                    if (offsets[i] >= subLimit) {
+                    if (offsets[i] < subLimit) {
                         resultsExhausted[i] = true;
                         resultsExhaustedCount++;
                     }
