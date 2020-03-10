@@ -17,12 +17,8 @@
 
 package org.janusgraph.graphdb.util;
 
-import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import com.google.common.base.Preconditions;
+import com.google.common.cache.Cache;
 import org.janusgraph.core.JanusGraphElement;
 import org.janusgraph.core.JanusGraphException;
 import org.janusgraph.diskstorage.BackendTransaction;
@@ -31,7 +27,10 @@ import org.janusgraph.graphdb.query.Query;
 import org.janusgraph.graphdb.query.graph.JointIndexQuery;
 import org.janusgraph.graphdb.query.profile.QueryProfiler;
 
-import com.google.common.cache.Cache;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * @author davidclement90@laposte.net
@@ -44,7 +43,9 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
 
     private List<Object> currentIds;
 
-    private QueryProfiler profiler;
+    private QueryProfiler streamedQueryProfiler;
+
+    private JointIndexQuery.Subquery streamedQuery;
 
     private boolean isTimerRunning;
 
@@ -55,30 +56,49 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
         Preconditions.checkArgument(limit >= 0, "Invalid limit: %s", limit);
         this.indexCache = indexCache;
         final Stream<?> stream;
-        if (queries.size() == 1) {
-            // For a single query, we are safe to execute it with the limit constraint
-            JointIndexQuery.Subquery subquery = queries.get(0).updateLimit(limit);
-            // TODO: refactor how we make use of cache and profiler
-            final List<Object> cacheResponse = indexCache.getIfPresent(subquery);
+        if (limit == Query.NO_LIMIT || queries.size() == 1) {
+            // If there is no limit, we lazily stream the first query and eagerly execute the rest of queries all at once
+            // Otherwise if there is only one query, we just lazily stream it
+            JointIndexQuery.Subquery firstQuery = queries.get(0).updateLimit(limit);
+            final List<Object> cacheResponse = indexCache.getIfPresent(firstQuery);
             if (cacheResponse != null) {
                 stream = cacheResponse.stream();
             } else {
-                profiler = QueryProfiler.startProfile(subquery.getProfiler(), subquery);
+                currentIds = new ArrayList<>();
+                streamedQuery = firstQuery;
+                streamedQueryProfiler = QueryProfiler.startProfile(firstQuery.getProfiler(), firstQuery);
                 isTimerRunning = true;
-                stream = indexSerializer.query(subquery, tx); // TODO: add to currentIds for cache purpose
+                stream = indexSerializer.query(firstQuery, tx).peek(r -> currentIds.add(r));
             }
-            elementIterator = stream.limit(limit).map(conversionFunction).map(r -> (JanusGraphElement) r).iterator();
-        } else if (limit >= Query.NO_LIMIT) {
-            // if there is no limit, we lazily stream the first query and eagerly execute the rest of queries all at once
-            JointIndexQuery.Subquery subquery = queries.get(0);
-            stream = indexSerializer.query(subquery, tx);
-            List<Object> otherResults = indexSerializer.query(queries.get(0), tx).collect(Collectors.toList());
+
+            // retrieve results from the rest queries and do intersection
+            Set<Object> otherResults = null;
             for (int i = 1; i < queries.size(); i++) {
-                Set<Object> subResult = indexSerializer.query(queries.get(i), tx).collect(Collectors.toSet());
-                otherResults.retainAll(subResult);
-                // TODO: add to cache
+                JointIndexQuery.Subquery subQuery = queries.get(i);
+                try {
+                    Set<Object> subResults = new HashSet<>(indexCache.get(subQuery, () -> {
+                        QueryProfiler profiler = subQuery.getProfiler();
+                        QueryProfiler.startProfile(profiler, subQuery);
+                        List<Object> queryResults = indexSerializer.query(subQuery, tx).collect(Collectors.toList());
+                        profiler.stopTimer();
+                        profiler.setResultSize(queryResults.size());
+                        return queryResults;
+                    }));
+                    if (i == 1) {
+                        otherResults = subResults;
+                    } else {
+                        assert otherResults != null;
+                        otherResults.retainAll(subResults);
+                    }
+                } catch (Exception e) {
+                    throw new JanusGraphException("Could not execute index query", e.getCause());
+                }
             }
-            elementIterator = stream.filter(e -> otherResults.contains(e)).map(conversionFunction).map(r -> (JanusGraphElement) r).iterator();
+
+            Set<Object> others = otherResults;
+            // combine the results of lazily streamed first query and the results of rest queries
+            elementIterator = stream.filter(e -> others == null || others.contains(e))
+                .map(conversionFunction).map(r -> (JanusGraphElement) r).iterator();
         } else {
             // For multiple queries, we progressively fetch results and take intersections
             final int multiplier = Math.min(16, (int) Math.pow(2, queries.size() - 1));
@@ -98,19 +118,28 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                     final int idx = i;
                     if (resultsExhausted[i]) continue;
                     if (scores[i] > scoreSum / queries.size()) continue;
-                    JointIndexQuery.Subquery subQuery = queries.get(i);
-                    // TODO: utilise and save into cache
                     int subLimit = (int) Math.min(Query.NO_LIMIT, Math.max(baseSubLimit,
                         Math.max(Math.pow(offsets[i], 1.5), (offsets[i] + 1) * 2)));
-                    // TODO: profile the query
-                    // TODO: leverage the scrolling capability of external indexing backends rather than throw away old results
-                    indexSerializer.query(subQuery.updateLimit(subLimit), tx).skip(offsets[i]).forEach(result -> {
-                        offsets[idx]++;
-                        List<Integer> queryNumbers = subResultToQueryMap.get(result);
-                        if (queryNumbers == null) queryNumbers = new ArrayList<>();
-                        queryNumbers.add(idx);
-                        subResultToQueryMap.put(result, queryNumbers);
-                    });
+                    JointIndexQuery.Subquery subQuery = queries.get(i).updateLimit(subLimit);
+                    final List<Object> subQueryCache = indexCache.getIfPresent(subQuery);
+                    if (subQueryCache != null) {
+                        assert subQueryCache.size() >= offsets[idx];
+                        for (int j = offsets[idx]; j < subQueryCache.size(); j++) {
+                            subResultToQueryMap.computeIfAbsent(subQueryCache.get(j), k -> new ArrayList<>()).add(idx);
+                        }
+                        offsets[idx] = subQueryCache.size();
+                    } else {
+                        QueryProfiler profiler = subQuery.getProfiler();
+                        QueryProfiler.startProfile(profiler, subQuery);
+                        // TODO: leverage the scrolling capability of external indexing backends rather than throw away old results
+                        indexSerializer.query(subQuery, tx).skip(offsets[i]).forEach(result -> {
+                            offsets[idx]++;
+                            subResultToQueryMap.computeIfAbsent(result, k -> new ArrayList<>()).add(idx);
+                        });
+                        profiler.stopTimer();
+                        profiler.setResultSize(offsets[idx]);
+                        // TODO: should we put it into cache?
+                    }
                     if (offsets[i] < subLimit) {
                         resultsExhausted[i] = true;
                         resultsExhaustedCount++;
@@ -133,10 +162,8 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                 // TODO: more factors to be considered: latency, total available size,
                 if (resultsExhaustedCount < queries.size() && results.size() < limit && queries.size() > 2) {
                     for (int i = 0; i < scores.length; i++) scores[i] = 0;
-                    /*
-                     * A query whose results have many intersections with other queries is less likely to be selective.
-                     * in the extreme case, an 'everything query' has intersections with all other queries
-                     */
+                    // A query whose results have many intersections with other queries is less likely to be selective.
+                    // in the extreme case, an 'everything query' has intersections with all other queries
                     for (List<Integer> queryNoList : subResultToQueryMap.values()) {
                         for (int idx : queryNoList) {
                             scores[idx] += Math.log(queryNoList.size());
@@ -174,23 +201,23 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
     @Override
     public boolean hasNext() {
         if (!elementIterator.hasNext() && currentIds != null) {
-//            indexCache.put(subQuery, currentIds);
-            profiler.stopTimer();
+            indexCache.put(streamedQuery, currentIds);
+            streamedQueryProfiler.stopTimer();
             isTimerRunning = false;
-            profiler.setResultSize(currentIds.size());
+            streamedQueryProfiler.setResultSize(currentIds.size());
         }
         return elementIterator.hasNext();
     }
 
     @Override
     public JanusGraphElement next() {
-        return this.elementIterator.next();
+        return elementIterator.next();
     }
 
     @Override
     public void close() throws Exception {
         if (isTimerRunning) {
-            profiler.stopTimer();
+            streamedQueryProfiler.stopTimer();
         }
     }
 
