@@ -58,6 +58,7 @@ import org.janusgraph.graphdb.database.management.ManagementSystem;
 import org.janusgraph.graphdb.internal.ElementCategory;
 import org.janusgraph.graphdb.internal.Order;
 import org.janusgraph.graphdb.log.StandardTransactionLogProcessor;
+import org.janusgraph.graphdb.query.Query;
 import org.janusgraph.graphdb.types.ParameterType;
 import org.janusgraph.graphdb.types.StandardEdgeLabelMaker;
 import org.janusgraph.testutil.TestGraphConfigs;
@@ -848,6 +849,85 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
                 numV / strings.length, new boolean[]{false, true});
         evaluateQuery(tx.query().has("text", Text.CONTAINS, strings[0]).orderBy("weight", asc), ElementCategory.VERTEX,
                 numV / strings.length, new boolean[]{false, false}, weight, Order.ASC);
+    }
+
+    public void testCompositeIndexing() {
+        final PropertyKey name = makeKey("name", String.class);
+        final PropertyKey weight = makeKey("weight", Double.class);
+        final PropertyKey text = makeKey("text", String.class);
+        makeKey("flag", Boolean.class);
+
+        mgmt.buildIndex("nameIndex", Vertex.class).addKey(name).buildCompositeIndex();
+        mgmt.buildIndex("weightIndex", Vertex.class).addKey(weight).buildCompositeIndex();
+        mgmt.commit();
+
+        final int numV = 100;
+        final String[] strings = {"houseboat", "humanoid", "differential", "extraordinary"};
+        final String[] stringsTwo = new String[strings.length];
+        for (int i = 0; i < strings.length; i++) stringsTwo[i] = strings[i] + " " + strings[i];
+        final int modulo = 5;
+        final int divisor = modulo * strings.length;
+
+        for (int i = 0; i < numV; i++) {
+            final JanusGraphVertex v = tx.addVertex();
+            v.property("name", strings[i % strings.length]);
+            v.property("text", strings[i % strings.length]);
+            v.property("weight", (i % modulo) + 0.5);
+            v.property("flag", true);
+        }
+        tx.commit();
+
+        GraphTraversalSource g = graph.traversal();
+        long totalCount = g.V().has("name", "houseboat")
+            .count()
+            .next();
+        long limitCount = g.V().has("name", "houseboat")
+            .has("weight", 0.5)
+            .limit(1)
+            .count()
+            .next();
+        graph.tx().rollback();
+    }
+
+    @Test
+    public void testCompositeAndMixedIndexingHeavyLoad() {
+        final PropertyKey name = makeKey("name", String.class);
+        final PropertyKey weight = makeKey("weight", Double.class);
+        final PropertyKey text = makeKey("text", String.class);
+        makeKey("flag", Boolean.class);
+
+        final JanusGraphIndex composite = mgmt.buildIndex("composite", Vertex.class).addKey(name).buildCompositeIndex();
+        final JanusGraphIndex mixed = mgmt.buildIndex("mixed", Vertex.class).addKey(text, getTextMapping()).buildMixedIndex(INDEX);
+        mixed.name();
+        composite.name();
+        finishSchema();
+
+        final int numV = 100000;
+        final String[] strings = {"houseboat", "humanoid", "differential", "extraordinary"};
+        final String[] stringsTwo = new String[strings.length];
+        for (int i = 0; i < strings.length; i++) stringsTwo[i] = strings[i] + " " + strings[i];
+        final int modulo = 5;
+
+        for (int i = 0; i < numV; i++) {
+            final JanusGraphVertex v = tx.addVertex();
+            v.property("name", strings[i % 4]);
+            v.property("text", strings[i % 3]);
+            v.property("weight", (i % modulo) + 0.5);
+            v.property("flag", true);
+        }
+        tx.commit();
+
+        long startTimeMs;
+        long measuredTimeMs;
+
+        for (int limit : Arrays.asList(1, 10, 100, 1000, 10000, Query.NO_LIMIT)) {
+            GraphTraversalSource g = graph.traversal();
+            startTimeMs = System.currentTimeMillis();
+            Long count = g.V().has("name", "houseboat").has("text", Text.textContains("houseboat")).limit(limit).count().next();
+            measuredTimeMs = System.currentTimeMillis() - startTimeMs;
+            System.out.println(limit + " limit search time: " + measuredTimeMs + ", count = " + count);
+            g.tx().rollback();
+        }
     }
 
     @Test
