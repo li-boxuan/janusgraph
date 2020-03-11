@@ -921,7 +921,8 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
         long startTimeMs;
         long measuredTimeMs;
 
-        for (int limit : Arrays.asList(1, 10, 100, 1000, 10000, Query.NO_LIMIT)) {
+//        for (int limit : Arrays.asList(1, 10, 100, 1000, 10000, Query.NO_LIMIT)) {
+        for (int limit : Arrays.asList(Query.NO_LIMIT)) {
             GraphTraversalSource g = graph.traversal();
             startTimeMs = System.currentTimeMillis();
             Long count = g.V().has("name", "houseboat").has("text", Text.textContains("houseboat")).limit(limit).count().next();
@@ -929,6 +930,13 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
             System.out.println(limit + " limit search time: " + measuredTimeMs + ", count = " + count);
             g.tx().rollback();
         }
+
+        GraphTraversalSource g = graph.traversal();
+        startTimeMs = System.currentTimeMillis();
+        Long count = g.V().has("name", "houseboat").has("text", Text.textContains("houseboat")).count().next();
+        measuredTimeMs = System.currentTimeMillis() - startTimeMs;
+        System.out.println("total search time: " + measuredTimeMs + ", count = " + count);
+        g.tx().rollback();
     }
 
     @Test
