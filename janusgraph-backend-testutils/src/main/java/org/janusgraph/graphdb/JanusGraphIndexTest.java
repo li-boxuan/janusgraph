@@ -18,6 +18,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
+import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
 import org.janusgraph.TestCategory;
 import org.janusgraph.core.Cardinality;
 import org.janusgraph.core.EdgeLabel;
@@ -81,14 +82,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -920,14 +914,36 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
         long startTimeMs;
         long measuredTimeMs;
 
-        for (int limit : Arrays.asList(1, 10, 100, 1000, 10000, Query.NO_LIMIT)) {
+        /*for (int limit : Arrays.asList(Query.NO_LIMIT)) {
             GraphTraversalSource g = graph.traversal();
             startTimeMs = System.currentTimeMillis();
             Long count = g.V().has("name", "houseboat").has("text", Text.textContains("houseboat")).limit(limit).count().next();
             measuredTimeMs = System.currentTimeMillis() - startTimeMs;
             System.out.println(limit + " limit search time: " + measuredTimeMs + ", count = " + count);
             g.tx().rollback();
+        }*/
+
+        GraphTraversalSource g = graph.traversal();
+        GraphTraversal<Vertex, Vertex> it = g.V().has("name", "houseboat").has("text", Text.textContains("houseboat")).limit(10000);
+        int count = 0;
+        List<Vertex> vertices = new ArrayList<>();
+        while (it.hasNext()) {
+            count++;
+            vertices.add(it.next());
         }
+        System.out.println("After filtering, total vertices: " + vertices.size() + "; count: " + count);
+        g.tx().rollback();
+
+        it = g.V().has("name", "houseboat").has("text", Text.textContains("houseboat"));
+        count = 0;
+        while (it.hasNext()) {
+            if (!vertices.get(count).equals(it.next())) {
+               System.out.println("vertex not equal! count = " + count);
+            }
+            count++;
+        }
+        System.out.println("count: " + count);
+        g.tx().rollback();
     }
 
     @Test
