@@ -118,6 +118,7 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                     final int idx = i;
                     if (resultsExhausted[i]) continue;
                     if (scores[i] > scoreSum / queries.size()) continue;
+                    // TODO: subLimit should be based on offset (offset small means we should increase subLimit more)
                     int subLimit = (int) Math.min(Query.NO_LIMIT, Math.max(baseSubLimit,
                         Math.max(Math.pow(offsets[i], 1.5), (offsets[i] + 1) * 2)));
                     JointIndexQuery.Subquery subQuery = queries.get(i).updateLimit(subLimit);
@@ -151,19 +152,18 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                     Map.Entry<Object, List<Integer>> entry = it.next();
                     if (entry.getValue().size() == queries.size()) {
                         // this particular result satisfies every index query
-                        if (results.size() < limit) results.add(entry.getKey());
+                        results.add(entry.getKey());
                         it.remove();
+                        if (results.size() >= limit) break;
                     }
                 }
 
                 // Calculate score for each query. Lower score means the query is more selective and more likely to
                 // be the bottleneck. Unless more factors are taken into consideration, at the moment it does not make
                 // sense to compare queries if we only have two.
-                // TODO: more factors to be considered: latency, total available size,
                 if (resultsExhaustedCount < queries.size() && results.size() < limit && queries.size() > 2) {
                     for (int i = 0; i < scores.length; i++) scores[i] = 0;
                     // A query whose results have many intersections with other queries is less likely to be selective.
-                    // in the extreme case, an 'everything query' has intersections with all other queries
                     for (List<Integer> queryNoList : subResultToQueryMap.values()) {
                         for (int idx : queryNoList) {
                             scores[idx] += Math.log(queryNoList.size());
@@ -172,7 +172,7 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                 }
 
             } while (resultsExhaustedCount < queries.size() && results.size() < limit);
-            elementIterator = results.stream().map(conversionFunction).map(r -> (JanusGraphElement) r).iterator();
+            elementIterator = results.stream().limit(limit).map(conversionFunction).map(r -> (JanusGraphElement) r).iterator();
         }
     }
 
