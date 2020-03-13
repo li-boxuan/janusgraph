@@ -104,7 +104,7 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
             final int multiplier = Math.min(16, (int) Math.pow(2, queries.size() - 1));
             int baseSubLimit = Math.min(limit * multiplier, Query.NO_LIMIT);
             // A mapping of result to a number list of queries that contain this result
-            Map<Object, List<Integer>> subResultToQueryMap = new LinkedHashMap<>();
+            LinkedHashMap<Object, List<Integer>> subResultToQueryMap = new LinkedHashMap<>();
             double[] scores = new double[queries.size()];
             int[] offsets = new int[queries.size()];
             boolean[] resultsExhausted = new boolean[queries.size()];
@@ -152,9 +152,9 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                     Map.Entry<Object, List<Integer>> entry = it.next();
                     if (entry.getValue().size() == queries.size()) {
                         // this particular result satisfies every index query
+                        if (results.size() < 10) System.out.println("results[" + results.size() + "] = " + entry.getKey());
                         results.add(entry.getKey());
                         it.remove();
-                        if (results.size() >= limit) break;
                     }
                 }
 
@@ -172,7 +172,10 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                 }
 
             } while (resultsExhaustedCount < queries.size() && results.size() < limit);
-            elementIterator = results.stream().limit(limit).map(conversionFunction).map(r -> (JanusGraphElement) r).iterator();
+            List<JanusGraphElement> jgResults = results.stream().map(conversionFunction).map(r -> (JanusGraphElement) r).collect(Collectors.toList());
+            // we must ensure results are in a certain order, otherwise calling
+            Collections.sort(jgResults, (a, b) -> a.longId() > b.longId() ? 1 : -1);
+            elementIterator = jgResults.stream().limit(limit).iterator();
         }
     }
 
