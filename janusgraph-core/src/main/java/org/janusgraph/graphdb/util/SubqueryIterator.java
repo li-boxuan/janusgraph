@@ -133,7 +133,7 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                         QueryProfiler profiler = subQuery.getProfiler();
                         QueryProfiler.startProfile(profiler, subQuery);
                         // TODO: leverage the scrolling capability of external indexing backends rather than throw away old results
-                        indexSerializer.query(subQuery, tx).skip(offsets[i]).forEach(result -> {
+                        indexSerializer.query(subQuery, tx).skip(offsets[idx]).forEachOrdered(result -> {
                             offsets[idx]++;
                             subResultToQueryMap.computeIfAbsent(result, k -> new ArrayList<>()).add(idx);
                         });
