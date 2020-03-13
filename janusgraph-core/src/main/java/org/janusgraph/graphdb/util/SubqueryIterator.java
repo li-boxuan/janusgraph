@@ -101,7 +101,7 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                 .map(conversionFunction).map(r -> (JanusGraphElement) r).iterator();
         } else {
             // For multiple queries, we progressively fetch results and take intersections
-            final int multiplier = Math.min(16, (int) Math.pow(2, queries.size() - 1));
+            final int multiplier = Math.min(128, (int) Math.pow(2, Math.pow(2, queries.size() - 1)));
             int baseSubLimit = Math.min(limit * multiplier, Query.NO_LIMIT);
             // A mapping of result to a number list of queries that contain this result
             Map<Object, List<Integer>> subResultToQueryMap = new LinkedHashMap<>();
@@ -117,7 +117,7 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                 for (int i = 0; i < queries.size(); i++) {
                     final int idx = i;
                     if (resultsExhausted[idx]) continue;
-                    if (scores[idx] > scoreSum / queries.size()) continue;
+                    if (scores[idx] > scoreSum / (queries.size() - resultsExhaustedCount)) continue;
                     int subLimit;
                     if (offsets[i] > 0) {
                         // Estimate the best subLimit based on previous round of query. It is a reasonable assumption
@@ -166,7 +166,8 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                 }
 
                 // Calculate score for each query. Lower score means the query is more selective and more likely to
-                // be the bottleneck. Unless more factors are taken into consideration, at the moment it does not make
+                // be the bottleneck. Exhausted queries always have 0 score.
+                // Unless more factors are taken into consideration, at the moment it does not make
                 // sense to compare queries if we only have two.
                 // TODO: take more factors into consideration, e.g. query latency
                 if (resultsExhaustedCount < queries.size() && results.size() < limit && queries.size() > 2) {
@@ -178,9 +179,11 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                     // then that query is more likely to be the bottleneck.
                     for (List<Integer> queryNoList : subResultToQueryMap.values()) {
                         for (int idx : queryNoList) {
-                            scores[idx] += Math.log(queryNoList.size());
+                            if (!resultsExhausted[idx]) scores[idx] += Math.log(queryNoList.size());
                         }
                     }
+                    // prevent the number of executions per query from diverging too much
+                    for (int i = 0; i < scores.length; i++) scores[i] /= Math.log(offsets[i]);
                 }
 
             } while (resultsExhaustedCount < queries.size() && results.size() < limit);

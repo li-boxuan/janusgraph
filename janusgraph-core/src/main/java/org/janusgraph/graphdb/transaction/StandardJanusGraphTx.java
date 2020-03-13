@@ -1324,7 +1324,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
                 // Constructs an iterator which lazily streams results if only one query is given, otherwise filters results
                 // by doing an intersection from all subQueries. When there is more than one query and adjustQuery is
                 // enabled, we must use NO_LIMIT to ensure result orders remain unchanged among executions.
-                int limit = getGraph().getConfiguration().adjustQueryLimit() && indexQuery.getQueries().size() > 1
+                final int limit = getGraph().getConfiguration().adjustQueryLimit() && indexQuery.getQueries().size() > 1
                     ? Query.NO_LIMIT : indexQuery.getLimit();
                 iterator = new SubqueryIterator(indexQuery.getQueries(), indexSerializer, txHandle, indexCache,
                     limit, getConversionFunction(query.getResultType()));
