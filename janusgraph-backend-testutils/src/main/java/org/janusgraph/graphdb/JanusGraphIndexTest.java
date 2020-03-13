@@ -915,37 +915,18 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
         long startTimeMs;
         long measuredTimeMs;
 
-//        for (int limit : Arrays.asList(1, 10, 100, 1000, 10000, Query.NO_LIMIT)) {
-        /*for (int limit : Arrays.asList(Query.NO_LIMIT)) {
-            GraphTraversalSource g = graph.traversal();
-            startTimeMs = System.currentTimeMillis();
-            Long count = g.V().has("name", "houseboat").has("text", Text.textContains("houseboat")).limit(limit).count().next();
-            measuredTimeMs = System.currentTimeMillis() - startTimeMs;
-            System.out.println(limit + " limit search time: " + measuredTimeMs + ", count = " + count);
-            g.tx().rollback();
-        }*/
-
-        GraphTraversalSource g = graph.traversal();
-        GraphTraversal<Vertex, Vertex> it = g.V().has("name", "houseboat").has("text", Text.textContains("houseboat")).limit(10000);
-        int count = 0;
-        List<Vertex> vertices = new ArrayList<>();
-        while (it.hasNext()) {
-            count++;
-            vertices.add(it.next());
-        }
-        System.out.println("After filtering, total vertices: " + vertices.size() + "; count: " + count);
-        g.tx().rollback();
-
-        it = g.V().has("name", "houseboat").has("text", Text.textContains("houseboat"));
-        count = 0;
-        while (it.hasNext()) {
-            if (!vertices.get(count).equals(it.next())) {
-               System.out.println("vertex not equal! count = " + count);
+        for (boolean adjustLimit : Arrays.asList(true, false)) {
+            clopen(option(ADJUST_LIMIT), adjustLimit);
+            System.out.println("ADJUST_LIMIT is: " + adjustLimit);
+            for (int limit : Arrays.asList(1, 10, 100, 1000, 10000, Query.NO_LIMIT)) {
+                GraphTraversalSource g = graph.traversal();
+                startTimeMs = System.currentTimeMillis();
+                Long count = g.V().has("name", "houseboat").has("text", Text.textContains("houseboat")).limit(limit).count().next();
+                measuredTimeMs = System.currentTimeMillis() - startTimeMs;
+                System.out.println(limit + " limit search time: " + measuredTimeMs + ", count = " + count);
+                g.tx().rollback();
             }
-            count++;
         }
-        System.out.println("count: " + count);
-        g.tx().rollback();
     }
 
     @Test

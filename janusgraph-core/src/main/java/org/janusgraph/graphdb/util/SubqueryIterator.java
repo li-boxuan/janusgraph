@@ -51,7 +51,7 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
 
     public SubqueryIterator(List<JointIndexQuery.Subquery> queries, IndexSerializer indexSerializer,
                             BackendTransaction tx, Cache<JointIndexQuery.Subquery, List<Object>> indexCache,
-                            int limit, Function<Object, ? extends JanusGraphElement> conversionFunction) {
+                            final int limit, Function<Object, ? extends JanusGraphElement> conversionFunction) {
         Preconditions.checkArgument(!queries.isEmpty());
         Preconditions.checkArgument(limit >= 0, "Invalid limit: %s", limit);
         this.indexCache = indexCache;
@@ -74,7 +74,7 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
             // retrieve results from the rest queries and do intersection
             Set<Object> otherResults = null;
             for (int i = 1; i < queries.size(); i++) {
-                JointIndexQuery.Subquery subQuery = queries.get(i);
+                JointIndexQuery.Subquery subQuery = queries.get(i).updateLimit(Query.NO_LIMIT);
                 try {
                     Set<Object> subResults = new HashSet<>(indexCache.get(subQuery, () -> {
                         QueryProfiler profiler = subQuery.getProfiler();
@@ -104,7 +104,7 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
             final int multiplier = Math.min(16, (int) Math.pow(2, queries.size() - 1));
             int baseSubLimit = Math.min(limit * multiplier, Query.NO_LIMIT);
             // A mapping of result to a number list of queries that contain this result
-            LinkedHashMap<Object, List<Integer>> subResultToQueryMap = new LinkedHashMap<>();
+            Map<Object, List<Integer>> subResultToQueryMap = new LinkedHashMap<>();
             double[] scores = new double[queries.size()];
             int[] offsets = new int[queries.size()];
             boolean[] resultsExhausted = new boolean[queries.size()];
@@ -113,15 +113,23 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
             do {
                 double scoreSum = 0;
                 for (double score : scores) scoreSum += score;
-                // Pick up suitable queries to execute
+                // Pick up suitable queries to execute. We pick up queries with score lower than the average.
                 for (int i = 0; i < queries.size(); i++) {
                     final int idx = i;
-                    if (resultsExhausted[i]) continue;
-                    if (scores[i] > scoreSum / queries.size()) continue;
-                    // TODO: subLimit should be based on offset (offset small means we should increase subLimit more)
-                    int subLimit = (int) Math.min(Query.NO_LIMIT, Math.max(baseSubLimit,
-                        Math.max(Math.pow(offsets[i], 1.5), (offsets[i] + 1) * 2)));
-                    JointIndexQuery.Subquery subQuery = queries.get(i).updateLimit(subLimit);
+                    if (resultsExhausted[idx]) continue;
+                    if (scores[idx] > scoreSum / queries.size()) continue;
+                    int subLimit;
+                    if (offsets[i] > 0) {
+                        // Estimate the best subLimit based on previous round of query. It is a reasonable assumption
+                        // that no_of_total_results_needed : optimal_sublimit can be approximated by
+                        // no_of_last_intersected_results : last_sublimit.
+                        subLimit = results.size() > 0 ? limit * offsets[idx] / results.size() * 2
+                            : (int) Math.pow(offsets[i], 1.5);
+                    } else {
+                        subLimit = baseSubLimit;
+                    }
+                    subLimit = Math.min(Query.NO_LIMIT, subLimit);
+                    JointIndexQuery.Subquery subQuery = queries.get(idx).updateLimit(subLimit);
                     final List<Object> subQueryCache = indexCache.getIfPresent(subQuery);
                     if (subQueryCache != null) {
                         assert subQueryCache.size() >= offsets[idx];
@@ -141,8 +149,8 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                         profiler.setResultSize(offsets[idx]);
                         // TODO: should we put it into cache?
                     }
-                    if (offsets[i] < subLimit) {
-                        resultsExhausted[i] = true;
+                    if (offsets[idx] < subLimit) {
+                        resultsExhausted[idx] = true;
                         resultsExhaustedCount++;
                     }
                 }
@@ -152,7 +160,6 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                     Map.Entry<Object, List<Integer>> entry = it.next();
                     if (entry.getValue().size() == queries.size()) {
                         // this particular result satisfies every index query
-                        if (results.size() < 10) System.out.println("results[" + results.size() + "] = " + entry.getKey());
                         results.add(entry.getKey());
                         it.remove();
                     }
@@ -161,9 +168,14 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                 // Calculate score for each query. Lower score means the query is more selective and more likely to
                 // be the bottleneck. Unless more factors are taken into consideration, at the moment it does not make
                 // sense to compare queries if we only have two.
+                // TODO: take more factors into consideration, e.g. query latency
                 if (resultsExhaustedCount < queries.size() && results.size() < limit && queries.size() > 2) {
                     for (int i = 0; i < scores.length; i++) scores[i] = 0;
                     // A query whose results have many intersections with other queries is less likely to be selective.
+                    // A query with few intersections with other queries is more valuable in the sense that it contains
+                    // less redundant information, and thus is more useful.
+                    // In other words, if multiple index queries have huge overlaps with each other except one query,
+                    // then that query is more likely to be the bottleneck.
                     for (List<Integer> queryNoList : subResultToQueryMap.values()) {
                         for (int idx : queryNoList) {
                             scores[idx] += Math.log(queryNoList.size());
@@ -172,34 +184,9 @@ public class SubqueryIterator implements Iterator<JanusGraphElement>, AutoClosea
                 }
 
             } while (resultsExhaustedCount < queries.size() && results.size() < limit);
-            List<JanusGraphElement> jgResults = results.stream().map(conversionFunction).map(r -> (JanusGraphElement) r).collect(Collectors.toList());
-            // we must ensure results are in a certain order, otherwise calling
-            Collections.sort(jgResults, (a, b) -> a.longId() > b.longId() ? 1 : -1);
-            elementIterator = jgResults.stream().limit(limit).iterator();
+            elementIterator = results.stream().limit(limit).map(conversionFunction).map(r -> (JanusGraphElement) r).iterator();
         }
     }
-
-//    public SubqueryIterator(JointIndexQuery.Subquery subQuery, IndexSerializer indexSerializer, BackendTransaction tx,
-//            Cache<JointIndexQuery.Subquery, List<Object>> indexCache, int limit,
-//            Function<Object, ? extends JanusGraphElement> function, List<Object> otherResults) {
-//        this.subQuery = subQuery;
-//        this.indexCache = indexCache;
-//        final List<Object> cacheResponse = indexCache.getIfPresent(subQuery);
-//        final Stream<?> stream;
-//        if (cacheResponse != null) {
-//            stream = cacheResponse.stream();
-//        } else {
-//            try {
-//                currentIds = new ArrayList<>();
-//                profiler = QueryProfiler.startProfile(subQuery.getProfiler(), subQuery);
-//                isTimerRunning = true;
-//                stream = indexSerializer.query(subQuery, tx).peek(r -> currentIds.add(r));
-//            } catch (final Exception e) {
-//                throw new JanusGraphException("Could not call index", e.getCause());
-//            }
-//        }
-//        elementIterator = stream.filter(e -> otherResults == null || otherResults.contains(e)).limit(limit).map(function).map(r -> (JanusGraphElement) r).iterator();
-//    }
 
     @Override
     public boolean hasNext() {
