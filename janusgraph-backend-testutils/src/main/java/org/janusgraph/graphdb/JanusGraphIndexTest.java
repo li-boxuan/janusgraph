@@ -884,22 +884,24 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
     }
 
     @Test
-    public void testCompositeAndMixedIndexingHeavyLoad() {
+    public void testMultipleIndexQueryWithHeavyLoad() {
         final PropertyKey name = makeKey("name", String.class);
         final PropertyKey weight = makeKey("weight", Double.class);
         final PropertyKey text = makeKey("text", String.class);
-        makeKey("flag", Boolean.class);
+        final PropertyKey flag = makeKey("flag", Boolean.class);
 
-        final JanusGraphIndex composite = mgmt.buildIndex("composite", Vertex.class).addKey(name).buildCompositeIndex();
-        final JanusGraphIndex mixed = mgmt.buildIndex("mixed", Vertex.class).addKey(text, getTextMapping()).buildMixedIndex(INDEX);
-        mixed.name();
-        composite.name();
+        final JanusGraphIndex composite1 = mgmt.buildIndex("composite1", Vertex.class).addKey(name).buildCompositeIndex();
+        final JanusGraphIndex composite2 = mgmt.buildIndex("composite2", Vertex.class).addKey(weight).buildCompositeIndex();
+        final JanusGraphIndex mixed1 = mgmt.buildIndex("mixed1", Vertex.class).addKey(text, getTextMapping()).buildMixedIndex(INDEX);
+        final JanusGraphIndex mixed2 = mgmt.buildIndex("mixed2", Vertex.class).addKey(flag).buildMixedIndex(INDEX);
+        mixed1.name();
+        mixed2.name();
+        composite1.name();
+        composite2.name();
         finishSchema();
 
         final int numV = 100000;
         final String[] strings = {"houseboat", "humanoid", "differential", "extraordinary"};
-        final String[] stringsTwo = new String[strings.length];
-        for (int i = 0; i < strings.length; i++) stringsTwo[i] = strings[i] + " " + strings[i];
         final int modulo = 5;
 
         for (int i = 0; i < numV; i++) {
@@ -907,43 +909,33 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
             v.property("name", strings[i % 4]);
             v.property("text", strings[i % 3]);
             v.property("weight", (i % modulo) + 0.5);
-            v.property("flag", true);
+            v.property("flag", Boolean.valueOf(i % 2 == 0));
         }
         tx.commit();
 
         long startTimeMs;
         long measuredTimeMs;
 
-        /*for (int limit : Arrays.asList(Query.NO_LIMIT)) {
-            GraphTraversalSource g = graph.traversal();
-            startTimeMs = System.currentTimeMillis();
-            Long count = g.V().has("name", "houseboat").has("text", Text.textContains("houseboat")).limit(limit).count().next();
-            measuredTimeMs = System.currentTimeMillis() - startTimeMs;
-            System.out.println(limit + " limit search time: " + measuredTimeMs + ", count = " + count);
-            g.tx().rollback();
-        }*/
-
-        GraphTraversalSource g = graph.traversal();
-        GraphTraversal<Vertex, Vertex> it = g.V().has("name", "houseboat").has("text", Text.textContains("houseboat")).limit(10000);
-        int count = 0;
-        List<Vertex> vertices = new ArrayList<>();
-        while (it.hasNext()) {
-            count++;
-            vertices.add(it.next());
-        }
-        System.out.println("After filtering, total vertices: " + vertices.size() + "; count: " + count);
-        g.tx().rollback();
-
-        it = g.V().has("name", "houseboat").has("text", Text.textContains("houseboat"));
-        count = 0;
-        while (it.hasNext()) {
-            if (!vertices.get(count).equals(it.next())) {
-               System.out.println("vertex not equal! count = " + count);
+        for (int noOfSubqueries : Arrays.asList(1, 2, 3, 4)) {
+            System.out.println("############################");
+            System.out.println("Number of index subqueries is: " + noOfSubqueries);
+            for (boolean adjustLimit : Arrays.asList(true, false)) {
+                clopen(option(ADJUST_LIMIT), adjustLimit);
+                System.out.println("ADJUST_LIMIT is: " + adjustLimit);
+                for (int limit : Arrays.asList(1, 10, 100, 1000, Query.NO_LIMIT)) {
+                    GraphTraversalSource g = graph.traversal();
+                    startTimeMs = System.currentTimeMillis();
+                    GraphTraversal<Vertex, Vertex> query = g.V().has("name", "houseboat");
+                    if (noOfSubqueries > 1) query = query.has("text", Text.textContains("houseboat"));
+                    if (noOfSubqueries > 2) query = query.has("weight", 0.5);
+                    if (noOfSubqueries > 3) query = query.has("flag", true);
+                    Long count = query.limit(limit).count().next();
+                    measuredTimeMs = System.currentTimeMillis() - startTimeMs;
+                    System.out.println(limit + " limit search time: " + measuredTimeMs + ", count = " + count);
+                    g.tx().rollback();
+                }
             }
-            count++;
         }
-        System.out.println("count: " + count);
-        g.tx().rollback();
     }
 
     @Test
