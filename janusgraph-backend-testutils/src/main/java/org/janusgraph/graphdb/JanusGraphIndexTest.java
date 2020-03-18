@@ -18,6 +18,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
+import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
 import org.janusgraph.TestCategory;
 import org.janusgraph.core.Cardinality;
 import org.janusgraph.core.EdgeLabel;
@@ -848,6 +849,46 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
                 numV / strings.length, new boolean[]{false, true});
         evaluateQuery(tx.query().has("text", Text.CONTAINS, strings[0]).orderBy("weight", asc), ElementCategory.VERTEX,
                 numV / strings.length, new boolean[]{false, false}, weight, Order.ASC);
+    }
+
+    @Test
+    public void testMultipleIndexQueryWithHeavyLoad() {
+        final PropertyKey name = makeKey("name", String.class);
+        final PropertyKey text = makeKey("text", String.class);
+
+        final JanusGraphIndex composite = mgmt.buildIndex("composite", Vertex.class).addKey(name).buildCompositeIndex();
+//        final JanusGraphIndex composite2 = mgmt.buildIndex("composite2", Vertex.class).addKey(name).addKey(text).buildCompositeIndex();
+        final JanusGraphIndex mixed = mgmt.buildIndex("mixed", Vertex.class)
+            .addKey(name, Mapping.STRING.asParameter()).addKey(text, Mapping.STRING.asParameter()).buildMixedIndex(INDEX);
+        mixed.name();
+        composite.name();
+//        composite2.name();
+        finishSchema();
+
+        final int numV = 1000;
+        final String[] strings = {"houseboat", "humanoid", "differential", "extraordinary"};
+        final int modulo = 5;
+
+        for (int i = 0; i < numV; i++) {
+            final JanusGraphVertex v = tx.addVertex();
+            v.property("name", strings[i % 4]);
+            v.property("text", strings[i % 3]);
+        }
+        tx.commit();
+
+        long startTimeMs;
+        long measuredTimeMs;
+
+        long totalTimeMs = 0;
+        GraphTraversalSource g = graph.traversal();
+        startTimeMs = System.currentTimeMillis();
+        GraphTraversal<Vertex, Vertex> query = g.V().has("name", "houseboat")
+            .has("text", "houseboat");
+        Long count = query.count().next();
+        measuredTimeMs = System.currentTimeMillis() - startTimeMs;
+        totalTimeMs += measuredTimeMs;
+        System.out.println("search time: " + measuredTimeMs + ", count = " + count);
+        g.tx().rollback();
     }
 
     @Test
