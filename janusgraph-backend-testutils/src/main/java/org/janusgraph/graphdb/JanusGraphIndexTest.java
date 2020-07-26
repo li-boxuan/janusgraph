@@ -1785,7 +1785,7 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
 
         // Write schema and one vertex
         final PropertyKey prop = makeKey(propName, String.class);
-        createExternalVertexIndex(prop, INDEX);
+        mgmt.buildIndex("mixed", Vertex.class).addKey(prop, Mapping.STRING.asParameter()).buildMixedIndex(INDEX);
         finishSchema();
 
         final JanusGraphVertex v = graph.addVertex();
