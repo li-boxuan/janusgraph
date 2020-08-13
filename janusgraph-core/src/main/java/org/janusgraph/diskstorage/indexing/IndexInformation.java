@@ -39,6 +39,15 @@ public interface IndexInformation {
      */
     boolean supports(KeyInformation information);
 
+    /**
+     * Whether the index supports exists query with given type of field
+     * For example, Elasticsearch supports all data types, while Lucene
+     * does not supports Exists query for Geoshape fields
+     *
+     * @param dataType
+     * @return
+     */
+    boolean supportsExistsQuery(Class dataType);
 
     /**
      * Adjusts the name of the key so that it is a valid field name that can be used in the index.

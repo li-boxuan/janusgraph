@@ -18,6 +18,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
+import org.apache.tinkerpop.gremlin.structure.T;
 import org.janusgraph.TestCategory;
 import org.janusgraph.core.Cardinality;
 import org.janusgraph.core.EdgeLabel;
@@ -213,6 +214,111 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
         for (final IndexInformation index : backend.getIndexInformation().values()) {
             assertEquals(((IndexProvider) index).exists(), exists, "index " + suffix);
         }
+    }
+
+    /**
+     * Test that has(key) query utilizes mixed index if possible
+     * All data types supported by mixed index are tested
+     */
+    @Test
+    public void testHasKeyQuery() {
+        VertexLabel person = mgmt.makeVertexLabel("person").make();
+        PropertyKey name = mgmt.makePropertyKey("name").dataType(String.class).make();
+        PropertyKey nickname = mgmt.makePropertyKey("nickname").dataType(String.class).make();
+        PropertyKey age = mgmt.makePropertyKey("age").dataType(Integer.class).make();
+        PropertyKey houses = mgmt.makePropertyKey("houses").dataType(Integer.class).make();
+        PropertyKey sex = mgmt.makePropertyKey("sex").dataType(String.class).make();
+        PropertyKey single = mgmt.makePropertyKey("single").dataType(Boolean.class).make();
+        PropertyKey phone = mgmt.makePropertyKey("phone").dataType(Long.class).make();
+        PropertyKey flag = mgmt.makePropertyKey("flag").dataType(Boolean.class).make();
+        PropertyKey byteKey = mgmt.makePropertyKey("byte").dataType(Byte.class).make();
+        PropertyKey cars = mgmt.makePropertyKey("cars").dataType(Short.class).make();
+        PropertyKey deposit = mgmt.makePropertyKey("deposit").dataType(Float.class).make();
+        PropertyKey address = mgmt.makePropertyKey("address").dataType(Geoshape.class).make();
+        PropertyKey birthday = mgmt.makePropertyKey("birthday").dataType(Date.class).make();
+        PropertyKey instant = mgmt.makePropertyKey("instant").dataType(Instant.class).make();
+        PropertyKey uuid = mgmt.makePropertyKey("uuid").dataType(UUID.class).make();
+
+        mgmt.buildIndex("age", Vertex.class).addKey(age).buildCompositeIndex();
+        mgmt.buildIndex("namev", Vertex.class).addKey(name, Mapping.STRING.asParameter())
+            .buildMixedIndex(INDEX);
+        mgmt.buildIndex("nameidx", Vertex.class).addKey(nickname, Mapping.TEXT.asParameter())
+            .buildMixedIndex(INDEX);
+        mgmt.buildIndex("mixed", Vertex.class).addKey(sex, Mapping.TEXT.asParameter()).addKey(phone)
+            .addKey(instant).addKey(single).buildMixedIndex(INDEX);
+        mgmt.buildIndex("mi", Vertex.class).addKey(houses).addKey(deposit).addKey(uuid).buildMixedIndex(INDEX);
+        mgmt.buildIndex("theIndex", Vertex.class).addKey(address).addKey(deposit).addKey(byteKey)
+            .addKey(cars).addKey(birthday).buildMixedIndex(INDEX);
+        finishSchema();
+
+        JanusGraphVertex v = tx.addVertex(T.label, "person", "name", "", "age", 30, "sex", "male", "houses", 0,
+            "cars", 0, "deposit", 0.0, "birthday", new Date(), "instant", Instant.ofEpochMilli(1), "uuid", UUID.randomUUID());
+        v.property("age").property("flag", true);
+        tx.addVertex(T.label, "person", "name", "robert", "nickname", "bob", "sex", "female", "phone", 12345678L,
+            "deposit", 100000.5, "instant", Instant.ofEpochMilli(100), "uuid", UUID.randomUUID(), "single", true);
+        tx.addVertex(T.label, "person", "nickname", "anonym is my name", "phone", 23456789L,
+            "byte", Byte.MIN_VALUE, "uuid", UUID.randomUUID());
+        tx.addVertex(T.label, "person", "houses", 2, "cars", 1, "address", Geoshape.point(37.97, 23.72));
+        tx.commit();
+
+        /* force index to be used */
+        clopen(option(FORCE_INDEX_USAGE), true);
+
+        // test has(key) -> has(key, NOT_EQUAL, null) (exists query) transformation in JanusGraph GraphCentricQuery
+        assertCount(2, tx.query().has("name").vertices());
+        assertCount(2, tx.query().has("nickname").vertices());
+        assertCount(2, tx.query().has("houses").vertices());
+        assertCount(2, tx.query().has("cars").vertices());
+        assertCount(1, tx.query().has("byte").vertices());
+        assertCount(2, tx.query().has("deposit").vertices());
+        assertCount(1, tx.query().has("birthday").vertices());
+        assertCount(2, tx.query().has("instant").vertices());
+        assertCount(3, tx.query().has("uuid").vertices());
+        assertCount(1, tx.query().has("single").vertices());
+
+        // test has(key) -> has(key, neq(null)) transformation in Gremlin query
+        assertEquals(2, graph.traversal().V().has("name").count().next());
+        assertEquals(2, graph.traversal().V().has("nickname").count().next());
+        assertEquals(2, graph.traversal().V().has("houses").count().next());
+        assertEquals(2, graph.traversal().V().has("cars").count().next());
+        assertEquals(1, graph.traversal().V().has("byte").count().next());
+        assertEquals(2, graph.traversal().V().has("deposit").count().next());
+        assertEquals(1, graph.traversal().V().has("birthday").count().next());
+        assertEquals(2, graph.traversal().V().has("instant").count().next());
+        assertEquals(3, graph.traversal().V().has("uuid").count().next());
+        assertEquals(1, graph.traversal().V().has("single").count().next());
+
+        final String backend = readConfig.get(INDEX_BACKEND, INDEX);
+        if (!backend.equals("lucene") && !backend.equals("solr")) {
+            assertEquals(1, graph.traversal().V().has("address").count().next());
+        }
+
+        // test has(key) transformations in OR/AND clauses where all conditions can use mixed index
+        assertEquals(3, graph.traversal().V().or(__.has("name"), __.has("nickname")).count().next());
+        assertEquals(1, graph.traversal().V().and(__.has("name"), __.has("nickname")).count().next());
+
+        // test mixed index for multiple fields, especially when some fields are missing in some vertices
+        assertEquals(2, graph.traversal().V().has("sex").count().next());
+        assertEquals(2, graph.traversal().V().has("phone").count().next());
+        assertEquals(3, graph.traversal().V().or(__.has("sex"), __.has("phone")).count().next());
+        assertEquals(1, graph.traversal().V().and(__.has("sex"), __.has("phone")).count().next());
+
+        /* lucene and solr do not support exists query for Geoshape */
+        clopen(option(FORCE_INDEX_USAGE), false);
+        assertEquals(1, graph.traversal().V().has("address").count().next());
+
+        /* composite index does not support exists query */
+        clopen(option(FORCE_INDEX_USAGE), false);
+
+        assertEquals(1, graph.traversal().V().has("age").count().next());
+
+        // test has(key) transformations in OR/AND clauses where one of conditions can use mixed index
+        assertEquals(2, graph.traversal().V().or(__.has("name"), __.has("age")).count().next());
+        assertEquals(1, graph.traversal().V().and(__.has("name"), __.has("age")).count().next());
+
+        // test has(key) transformations for meta-properties
+        assertNotNull(graph.traversal().V().has("age").properties("age").has("flag").next());
+        assertNotNull(graph.traversal().V().has("age").properties("age").as("p").has("flag").select("p").next());
     }
 
     @Test

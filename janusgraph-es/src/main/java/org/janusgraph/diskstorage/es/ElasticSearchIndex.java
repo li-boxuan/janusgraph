@@ -925,7 +925,9 @@ public class ElasticSearchIndex implements IndexProvider {
             Object value = atom.getValue();
             final String key = atom.getKey();
             final JanusGraphPredicate predicate = atom.getPredicate();
-            if (value instanceof Number) {
+            if (value == null && predicate == Cmp.NOT_EQUAL) {
+                return compat.exists(key);
+            } else if (value instanceof Number) {
                 Preconditions.checkArgument(predicate instanceof Cmp,
                         "Relation not supported on numeric types: " + predicate);
                 return getRelationFromCmp((Cmp) predicate, key, value);
@@ -1334,6 +1336,11 @@ public class ElasticSearchIndex implements IndexProvider {
         } catch (final IOException e) {
             throw new PermanentBackendException("Could not check if index " + indexName + " exists", e);
         }
+    }
+
+    @Override
+    public boolean supportsExistsQuery(Class dataType) {
+        return true;
     }
 
     ElasticMajorVersion getVersion() {

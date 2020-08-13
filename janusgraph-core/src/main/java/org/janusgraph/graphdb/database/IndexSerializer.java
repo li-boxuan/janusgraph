@@ -116,6 +116,10 @@ public class IndexSerializer {
         return getMixedIndex(index).supports(getKeyInformation(field),predicate);
     }
 
+    public boolean supportsExistsQuery(final MixedIndexType index, final ParameterIndexField field) {
+        return getMixedIndex(index).supportsExistsQuery(getKeyInformation(field).getDataType());
+    }
+
     public IndexFeatures features(final MixedIndexType index) {
         return getMixedIndex(index).getFeatures();
     }

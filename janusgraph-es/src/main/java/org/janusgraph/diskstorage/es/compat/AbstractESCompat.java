@@ -139,6 +139,10 @@ public abstract class AbstractESCompat {
         return ImmutableMap.of("regexp", ImmutableMap.of(key, value));
     }
 
+    public Map<String,Object> exists(String key) {
+        return ImmutableMap.of("exists", ImmutableMap.of("field", key));
+    }
+
     public Map<String,Object> match(String key, Object value) {
         return match(key, value, null);
     }

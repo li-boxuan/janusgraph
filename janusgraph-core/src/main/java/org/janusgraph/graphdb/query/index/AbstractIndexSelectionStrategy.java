@@ -22,6 +22,7 @@ import org.janusgraph.core.schema.JanusGraphSchemaType;
 import org.janusgraph.core.schema.SchemaStatus;
 import org.janusgraph.graphdb.database.IndexSerializer;
 import org.janusgraph.graphdb.internal.OrderList;
+import org.janusgraph.graphdb.query.JanusGraphPredicate;
 import org.janusgraph.graphdb.query.QueryUtil;
 import org.janusgraph.graphdb.query.condition.*;
 import org.janusgraph.graphdb.query.graph.JointIndexQuery;
@@ -204,7 +205,7 @@ public abstract class AbstractIndexSelectionStrategy implements IndexSelectionSt
             return false;
         }
         final PredicateCondition<RelationType, JanusGraphElement> atom = (PredicateCondition) condition;
-        if (atom.getValue() == null) {
+        if (atom.getValue() == null && atom.getPredicate() != Cmp.NOT_EQUAL) {
             return false;
         }
 
@@ -215,7 +216,11 @@ public abstract class AbstractIndexSelectionStrategy implements IndexSelectionSt
             .filter(field -> field.getStatus() == SchemaStatus.ENABLED)
             .filter(field -> field.getFieldKey().equals(key))
             .findAny().orElse(null);
-        return match != null && indexInfo.supports(index, match, atom.getPredicate());
+        if (match == null) {
+            return false;
+        }
+        boolean existsQuery = atom.getValue() == null && atom.getPredicate() == Cmp.NOT_EQUAL && indexInfo.supportsExistsQuery(index, match);
+        return existsQuery || indexInfo.supports(index, match, atom.getPredicate());
     }
 
     private Map.Entry<Condition,Collection<Object>> getEqualityConditionValues(

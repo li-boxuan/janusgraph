@@ -45,6 +45,11 @@ public class StandardIndexInformation implements IndexInformation {
     }
 
     @Override
+    public boolean supportsExistsQuery(Class dataType) {
+        return true;
+    }
+
+    @Override
     public String mapKey2Field(String key, KeyInformation information) {
         return key;
     }

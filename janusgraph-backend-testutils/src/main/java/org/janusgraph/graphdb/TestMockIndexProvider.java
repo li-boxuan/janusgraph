@@ -111,6 +111,11 @@ public class TestMockIndexProvider implements IndexProvider {
     }
 
     @Override
+    public boolean supportsExistsQuery(Class dataType) {
+        return true;
+    }
+
+    @Override
     public String mapKey2Field(String key, KeyInformation information) {
         return index.mapKey2Field(key,information);
     }
