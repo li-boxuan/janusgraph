@@ -1243,6 +1243,42 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
     }
 
     @Test
+    public void compareValuesAndValueMap() {
+        final PropertyKey name = makeKey("name",String.class);
+
+        final int numV = 20000;
+        List<String> strings = new ArrayList<>();
+        for(int i = 0; i < 100; i++){
+            strings.add("value" + i);
+        }
+        final int modulo = 5;
+
+        for(int i = 0; i < numV; i++){
+            final JanusGraphVertex v = tx.addVertex();
+            v.property("name", strings.get(0));
+        }
+        tx.commit();
+
+        long startTimeMs;
+        long measuredTimeMs;
+
+        GraphTraversalSource g = graph.traversal();
+
+        startTimeMs = System.currentTimeMillis();
+        g.V().valueMap().next(); // 44 ms
+        measuredTimeMs = System.currentTimeMillis() - startTimeMs;
+        System.out.println("valueMap() time(ms):" + measuredTimeMs);
+        g.tx().rollback();
+
+
+        startTimeMs = System.currentTimeMillis();
+        g.V().values().next(); // 212 ms
+        measuredTimeMs = System.currentTimeMillis() - startTimeMs;
+        System.out.println("values() time(ms):" + measuredTimeMs);
+        g.tx().rollback();
+    }
+
+    @Test
     public void testUpdateSchemaChangeNameForCompositeIndex() {
         PropertyKey time = mgmt.makePropertyKey("time").dataType(Integer.class).cardinality(Cardinality.SINGLE).make();
         mgmt.buildIndex("timeIndex", Vertex.class).addKey(time).buildCompositeIndex();
