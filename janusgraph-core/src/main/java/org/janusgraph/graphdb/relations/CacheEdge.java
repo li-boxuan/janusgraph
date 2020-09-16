@@ -87,9 +87,12 @@ public class CacheEdge extends AbstractEdge {
         copyProperties(copy);
         copy.remove();
 
-        StandardEdge u = (StandardEdge) tx().addEdge(getVertex(0), getVertex(1), edgeLabel());
-        if (type.getConsistencyModifier()!=ConsistencyModifier.FORK) u.setId(super.longId());
-        u.setPreviousID(super.longId());
+        Long id = null;
+        if (type.getConsistencyModifier() != ConsistencyModifier.FORK) {
+            id = longId();
+        };
+        StandardEdge u = (StandardEdge) tx().addEdge(id, getVertex(0), getVertex(1), edgeLabel());
+        u.setPreviousID(longId());
         copyProperties(u);
         setId(u.longId());
         return u;
