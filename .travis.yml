@@ -72,6 +72,8 @@ jobs:
       if: commit_message !~ /\[doc only\]/
 
     - <<: *STANDARD_TEST_JOB
+      env: MODULE='core'
+    - <<: *STANDARD_TEST_JOB
       env: MODULE='lucene'
     - <<: *STANDARD_TEST_JOB
       env: MODULE='solr' ARGS='-Pdocker,solr7'
