@@ -1212,7 +1212,7 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
             if (vertex.isNew()) return false;
             //In addition to deleted, we need to also check for added relations since those can potentially
             //replace existing ones due to a multiplicity constraint
-            return vertex.hasRemovedRelations() || vertex.hasAddedRelations();
+            return vertex.hasRemovedRelations();
         }
 
         @Override

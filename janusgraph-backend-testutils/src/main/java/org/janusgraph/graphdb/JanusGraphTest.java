@@ -306,7 +306,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
     public void testUpdateThenRemove() {
         Vertex v = graph.traversal().addV().property("_v", 1).next();
         v.property("_v").property("flag", false);
-        Vertex v2 = graph.traversal().addV().property("_v", 2).next();
+        Vertex v2 = graph.traversal().addV().property("_v", 2).property("prop", "value").next();
         v.addEdge("connect", v2, "_p", 1);
         graph.tx().commit();
 
@@ -318,8 +318,8 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         edge.property("_p", 2);
         // update property of a vertex
         // FIXME: https://github.com/JanusGraph/janusgraph/issues/1981
-        // v2 = graph.traversal().V().has("_v", 2).next();
-        // v2.property("_v", 3);
+         v2 = graph.traversal().V().has("_v", 2).next();
+         v2.property("_v", 3);
 
         graph.traversal().V().drop().iterate();
         graph.tx().commit();
