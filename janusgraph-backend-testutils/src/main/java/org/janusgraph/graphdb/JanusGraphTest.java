@@ -151,6 +151,7 @@ import org.janusgraph.graphdb.database.log.TransactionLogHeader;
 import org.janusgraph.graphdb.database.management.ManagementSystem;
 import org.janusgraph.graphdb.database.serialize.Serializer;
 import org.janusgraph.graphdb.internal.ElementCategory;
+import org.janusgraph.graphdb.internal.ElementLifeCycle;
 import org.janusgraph.graphdb.internal.InternalRelationType;
 import org.janusgraph.graphdb.internal.Order;
 import org.janusgraph.graphdb.internal.OrderList;
@@ -162,7 +163,7 @@ import org.janusgraph.graphdb.query.graph.GraphCentricQueryBuilder;
 import org.janusgraph.graphdb.query.profile.QueryProfiler;
 import org.janusgraph.graphdb.query.profile.SimpleQueryProfiler;
 import org.janusgraph.graphdb.query.vertex.BasicVertexCentricQueryBuilder;
-import org.janusgraph.graphdb.relations.CacheVertexProperty;
+import org.janusgraph.graphdb.relations.AbstractEdge;
 import org.janusgraph.graphdb.relations.RelationIdentifier;
 import org.janusgraph.graphdb.schema.EdgeLabelDefinition;
 import org.janusgraph.graphdb.schema.PropertyKeyDefinition;
@@ -204,6 +205,152 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
 
     final boolean isLockingOptimistic() {
         return features.hasOptimisticLocking();
+    }
+
+
+    /* ==================================================================================
+                       UPDATE THEN REMOVE IN THE SAME TRANSACTION
+     ==================================================================================*/
+
+    private void initializeGraphWithVerticesAndEdges() {
+        EdgeLabel forkConnect = mgmt.makeEdgeLabel("fork-connect").make();
+        mgmt.setConsistency(forkConnect, ConsistencyModifier.FORK);
+        mgmt.commit();
+
+        Vertex v = graph.traversal().addV().property("_v", 1).next();
+        v.property("_v").property("flag", false);
+        Vertex v2 = graph.traversal().addV().property("_v", 2).property("prop", "old").next();
+        Edge edge = v.addEdge("connect", v2, "_e", 1);
+        Edge forkEdge = v.addEdge("fork-connect", v2, "_e", 2);
+        graph.tx().commit();
+    }
+
+    @Test
+    public void testUpdateVertexPropThenRemoveProp() {
+        initializeGraphWithVerticesAndEdges();
+        Vertex v2 = graph.traversal().V().has("_v", 2).next();
+        assertEquals("old", v2.property("prop").value());
+        v2.property("prop", "new");
+        assertEquals("new", v2.property("prop").value());
+        v2.property("prop").remove();
+        graph.tx().commit();
+        assertFalse(graph.traversal().V(v2).values("prop").hasNext());
+    }
+
+    @Test
+    public void testUpdateVertexPropThenRemoveVertex() {
+        initializeGraphWithVerticesAndEdges();
+        Vertex v2 = graph.traversal().V().has("_v", 2).next();
+        assertEquals("old", v2.property("prop").value());
+        v2.property("prop", "new");
+        assertEquals("new", v2.property("prop").value());
+        v2.remove();
+        graph.tx().commit();
+        assertFalse(graph.traversal().V(v2).hasNext());
+        assertFalse(graph.traversal().V().has("prop", "old").hasNext());
+        assertFalse(graph.traversal().V().has("prop", "new").hasNext());
+    }
+
+    /**
+     * update property of a vertex property and remove the vertex property
+     */
+    @Test
+    public void testUpdatePropertyPropThenRemoveProperty() {
+        initializeGraphWithVerticesAndEdges();
+        VertexProperty p = (VertexProperty) graph.traversal().V().has("_v", 1).properties("_v").next();
+        assertEquals(false, p.property("flag").value());
+        p.property("flag", true);
+        assertEquals(true, p.property("flag").value());
+        p.remove();
+        graph.tx().commit();
+        assertFalse(graph.traversal().V().has("_v", 1).values("_v").hasNext());
+    }
+
+    /**
+     * update property of a vertex property and remove the property of the vertex property
+     */
+    @Test
+    public void testUpdatePropertyPropThenRemovePropertyProp() {
+        initializeGraphWithVerticesAndEdges();
+        VertexProperty p = (VertexProperty) graph.traversal().V().has("_v", 1).properties("_v").next();
+        assertTrue(graph.traversal().V().has("_v", 1).properties("_v").values("flag").hasNext());
+        assertEquals(false, p.property("flag").value());
+        p.property("flag", true);
+        assertEquals(true, p.property("flag").value());
+        p.property("flag").remove();
+        graph.tx().commit();
+        assertTrue(graph.traversal().V().has("_v", 1).values("_v").hasNext());
+        assertFalse(graph.traversal().V().has("_v", 1).properties("_v").values("flag").hasNext());
+    }
+
+    @Test
+    public void testUpdatePropertyPropThenRemoveVertex() {
+        initializeGraphWithVerticesAndEdges();
+        Vertex v = graph.traversal().V().has("_v", 1).next();
+        VertexProperty p = (VertexProperty) v.properties("_v").next();
+        assertEquals(false, p.property("flag").value());
+        p.property("flag", true);
+        assertEquals(true, p.property("flag").value());
+        p.property("flag").remove();
+        v.remove();
+        graph.tx().commit();
+        assertFalse(graph.traversal().V().has("_v", 1).hasNext());
+    }
+
+    @Test
+    public void testUpdateEdgePropertyThenRemoveEdge() {
+        initializeGraphWithVerticesAndEdges();
+        // normal edge
+        AbstractEdge edge = (AbstractEdge) graph.traversal().E().has("_e", 1).next();
+        assertTrue(ElementLifeCycle.isLoaded(edge.getLifeCycle()));
+        Object id = edge.id();
+
+        edge.property("_e", -1);
+        // the edge object represents the old edge to be deleted
+        assertEquals(id, edge.id());
+        assertTrue(ElementLifeCycle.isRemoved(edge.getLifeCycle()));
+        // the edge object has a corresponding new edge with same id
+        assertEquals(id, edge.it().id());
+        assertTrue(ElementLifeCycle.isNew(edge.it().getLifeCycle()));
+        assertTrue(edge.isNew());
+
+        edge.remove();
+        graph.tx().commit();
+        assertFalse(graph.traversal().E().has("_e", 1).hasNext());
+        assertFalse(graph.traversal().E().has("_e", -1).hasNext());
+        assertTrue(graph.traversal().E().has("_e", 2).hasNext());
+    }
+
+    @Test
+    public void testUpdateForkEdgePropertyThenRemoveEdge() {
+        initializeGraphWithVerticesAndEdges();
+        // fork edge
+        AbstractEdge edge = (AbstractEdge) graph.traversal().E().has("_e", 2).next();
+        assertTrue(ElementLifeCycle.isLoaded(edge.getLifeCycle()));
+        Object id = edge.id();
+
+        edge.property("_e", -2);
+        // the edge object represents the old edge to be deleted
+        assertEquals(id, edge.id());
+        assertTrue(ElementLifeCycle.isRemoved(edge.getLifeCycle()));
+        // the edge object has a corresponding new (forked) edge with different id
+        Object forkedId = edge.it().id();
+        assertNotEquals(id, forkedId);
+        assertTrue(ElementLifeCycle.isNew(edge.it().getLifeCycle()));
+        assertTrue(edge.isNew());
+
+        edge.property("_e", -3);
+        assertEquals(id, edge.id());
+        assertTrue(ElementLifeCycle.isRemoved(edge.getLifeCycle()));
+        assertEquals(forkedId, edge.it().id());
+        assertTrue(ElementLifeCycle.isNew(edge.it().getLifeCycle()));
+        assertTrue(edge.isNew());
+
+        edge.remove();
+        graph.tx().commit();
+        assertFalse(graph.traversal().E().has("_e", 2).hasNext());
+        assertFalse(graph.traversal().E().has("_e", -2).hasNext());
+        assertFalse(graph.traversal().E().has("_e", -3).hasNext());
     }
 
   /* ==================================================================================
@@ -297,38 +444,6 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         assertCount(1, graph.query().vertices());
         assertCount(1, graph.query().has(nameUniqueVertexPropertyName, "v1").vertices());
         assertCount(0, graph.query().has(nameUniqueVertexPropertyName, "v2").vertices());
-    }
-
-    /**
-     * Update properties of vertex property, vertex, and edge, and then remove the vertex and edge in the same transaction
-     */
-    @Test
-    public void testUpdateThenRemove() {
-        EdgeLabel forkConnect = mgmt.makeEdgeLabel("fork-connect").make();
-        mgmt.setConsistency(forkConnect, ConsistencyModifier.FORK);
-        mgmt.commit();
-
-        Vertex v = graph.traversal().addV().property("_v", 1).next();
-        v.property("_v").property("flag", false);
-        Vertex v2 = graph.traversal().addV().property("_v", 2).next();
-        Edge edge = v.addEdge("connect", v2, "_p", 1);
-        Edge forkEdge = v.addEdge("fork-connect", v2, "_p", 1);
-        graph.tx().commit();
-
-        // update properties and then remove vertices & edges
-        JanusGraphVertexProperty p = (JanusGraphVertexProperty) graph.traversal().V(v).properties("_v").next();
-        p.property("flag", true);
-        edge = graph.traversal().E(edge).next();
-        edge.property("_p", 2);
-        forkEdge = graph.traversal().E(forkEdge).next();
-        forkEdge.property("_p", 2);
-        // FIXME: https://github.com/JanusGraph/janusgraph/issues/1981
-        // v2 = graph.traversal().V().has("_v", 2).next();
-        // v2.property("_v", 3);
-        graph.traversal().V().drop().iterate();
-        graph.tx().commit();
-        assertFalse(graph.traversal().V().hasNext());
-        assertFalse(graph.traversal().E().hasNext());
     }
 
     /**

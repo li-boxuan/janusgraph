@@ -798,6 +798,10 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
 //                }
 //            }
 
+            long propId = id == null ? IDManager.getTemporaryRelationID(temporaryIds.nextID()) : id;
+            StandardVertexProperty prop = new StandardVertexProperty(propId, key, (InternalVertex) vertex, normalizedValue, ElementLifeCycle.New);
+            if (config.hasAssignIDsImmediately() && id == null) graph.assignID(prop);
+
             //Delete properties if the cardinality is restricted
             if (cardinality==VertexProperty.Cardinality.single || cardinality== VertexProperty.Cardinality.set) {
                 Consumer<JanusGraphRelation> propertyRemover;
@@ -816,7 +820,10 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
                 if ( (!config.hasVerifyUniqueness() || ((InternalRelationType)key).getConsistencyModifier()!=ConsistencyModifier.LOCK) &&
                         !TypeUtil.hasAnyIndex(key) && cardinality==keyCardinality.convert()) {
                     //Only delete in-memory so as to not trigger a read from the database which isn't necessary because we will overwrite blindly
+                    //We need to label the new property as "upsert", so that in case property deletion happens, we not only delete this new
+                    //in-memory property, but also read from database to delete the old value (if exists)
                     ((InternalVertex) vertex).getAddedRelations(p -> p.getType().equals(key)).forEach(propertyRemover);
+                    prop.setUpsert(true);
                 } else {
                     ((InternalVertex) vertex).query().types(key).properties().forEach(propertyRemover);
                 }
@@ -830,9 +837,6 @@ public class StandardJanusGraphTx extends JanusGraphBlueprintsTransaction implem
                         throw new SchemaViolationException("Adding this property for key [%s] and value [%s] violates a uniqueness constraint [%s]", key.name(), normalizedValue, lockTuple.getIndex());
                 }
             }
-            long propId = id == null ? IDManager.getTemporaryRelationID(temporaryIds.nextID()) : id;
-            StandardVertexProperty prop = new StandardVertexProperty(propId, key, (InternalVertex) vertex, normalizedValue, ElementLifeCycle.New);
-            if (config.hasAssignIDsImmediately() && id == null) graph.assignID(prop);
             connectRelation(prop);
             return prop;
         } finally {
