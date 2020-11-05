@@ -17,15 +17,18 @@ package org.janusgraph.graphdb.relations;
 import com.carrotsearch.hppc.cursors.LongObjectCursor;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
+import org.janusgraph.core.Multiplicity;
 import org.janusgraph.core.PropertyKey;
 import org.janusgraph.core.schema.ConsistencyModifier;
 import org.janusgraph.core.EdgeLabel;
 import org.janusgraph.diskstorage.Entry;
 import org.janusgraph.graphdb.internal.ElementLifeCycle;
 import org.janusgraph.graphdb.internal.InternalRelation;
+import org.janusgraph.graphdb.internal.InternalRelationType;
 import org.janusgraph.graphdb.internal.InternalVertex;
 import org.janusgraph.graphdb.transaction.RelationConstructor;
 import org.apache.tinkerpop.gremlin.structure.Direction;
+import org.janusgraph.graphdb.types.TypeUtil;
 import org.janusgraph.graphdb.types.system.ImplicitKey;
 
 import java.util.ArrayList;
@@ -36,6 +39,13 @@ import java.util.List;
  */
 
 public class CacheEdge extends AbstractEdge {
+
+    /**
+     * If this edge will be overwritten after this transaction completes
+     * We don't need to explicitly delete the edge from the database since it will be overwritten by the corresponding
+     * new edge (which can be considered as an upsert operation)
+     */
+    private boolean overwritten;
 
     public CacheEdge(long id, EdgeLabel label, InternalVertex start, InternalVertex end, Entry data) {
         super(id, label, start.it(), end.it());
@@ -59,7 +69,7 @@ public class CacheEdge extends AbstractEdge {
         InternalRelation it = null;
         InternalVertex startVertex = getVertex(0);
 
-        if (startVertex.hasAddedRelations() && startVertex.hasRemovedRelations()) {
+        if (startVertex.hasAddedRelations()) {
             //Test whether this relation has been replaced
             final long id = super.longId();
             final Iterable<InternalRelation> added = startVertex.getAddedRelations(
@@ -83,9 +93,20 @@ public class CacheEdge extends AbstractEdge {
     }
 
     private synchronized InternalRelation update() {
-        StandardEdge copy = new StandardEdge(super.longId(), edgeLabel(), getVertex(0), getVertex(1), ElementLifeCycle.Loaded);
-        copyProperties(copy);
-        copy.remove();
+//        (!config.hasVerifyUniqueness() || ((InternalRelationType)key).getConsistencyModifier()!=ConsistencyModifier.LOCK) &&
+//            !TypeUtil.hasAnyIndex(key)
+        // TODO: 1) delete is mandatory only if sort key includes property to be updated
+        // TODO: 2) check if updated property is associated with index
+        // TODO: 3) check locking
+        // TODO: 4) check verify uniqueness
+
+        if (type.getConsistencyModifier() == ConsistencyModifier.DEFAULT && type.getSortKey().length == 0 && type.multiplicity() == Multiplicity.MULTI) {
+            overwritten = true;
+        } else {
+            StandardEdge copy = new StandardEdge(super.longId(), edgeLabel(), getVertex(0), getVertex(1), ElementLifeCycle.Loaded);
+            copyProperties(copy);
+            copy.remove();
+        }
 
         Long id = type.getConsistencyModifier() != ConsistencyModifier.FORK ? longId() : null;
         StandardEdge u = (StandardEdge) tx().addEdge(id, getVertex(0), getVertex(1), edgeLabel());
@@ -139,6 +160,12 @@ public class CacheEdge extends AbstractEdge {
     @Override
     public void remove() {
         if (!isRemoved()) {
+            if (overwritten) {
+                StandardEdge copy = new StandardEdge(super.longId(), edgeLabel(), getVertex(0), getVertex(1), ElementLifeCycle.Loaded);
+                copyProperties(copy);
+                copy.remove();
+                overwritten = false;
+            }
             tx().removeRelation(this);
         }// else throw InvalidElementException.removedException(this);
     }
