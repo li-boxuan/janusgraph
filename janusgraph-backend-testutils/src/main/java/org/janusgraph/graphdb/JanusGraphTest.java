@@ -306,9 +306,9 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         Object id = edge.id();
 
         edge.property("_e", -1);
-        // the edge object represents the old edge to be deleted
+        // the edge object represents the old edge
         assertEquals(id, edge.id());
-        assertTrue(ElementLifeCycle.isRemoved(edge.getLifeCycle()));
+        assertTrue(ElementLifeCycle.isLoaded(edge.getLifeCycle()));
         // the edge object has a corresponding new edge with same id
         assertEquals(id, edge.it().id());
         assertTrue(ElementLifeCycle.isNew(edge.it().getLifeCycle()));
@@ -4833,7 +4833,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         } else {
             assertEquals(4, userLogMsgCounter.get());
             assertEquals(7, userChangeCounter.get(Change.ADDED).get());
-            assertEquals(4, userChangeCounter.get(Change.REMOVED).get());
+            assertEquals(3, userChangeCounter.get(Change.REMOVED).get());
         }
 
         clopen(option(VERBOSE_TX_RECOVERY), true);
@@ -4932,17 +4932,13 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
                         assertEquals(0, Iterables.size(changes.getVertices(Change.REMOVED)));
                         assertEquals(1, Iterables.size(changes.getVertices(Change.ANY)));
                         assertEquals(1, Iterables.size(changes.getRelations(Change.ADDED)));
-                        assertEquals(1, Iterables.size(changes.getRelations(Change.REMOVED)));
-                        assertEquals(1, Iterables.size(changes.getRelations(Change.REMOVED, knows1)));
-                        assertEquals(2, Iterables.size(changes.getRelations(Change.ANY)));
+                        assertEquals(0, Iterables.size(changes.getRelations(Change.REMOVED)));
+                        assertEquals(0, Iterables.size(changes.getRelations(Change.REMOVED, knows1)));
+                        assertEquals(1, Iterables.size(changes.getRelations(Change.ANY)));
 
                         final JanusGraphVertex v = Iterables.getOnlyElement(changes.getVertices(Change.ANY));
                         assertEquals(v1id, getId(v));
-                        JanusGraphEdge e1
-                                = Iterables.getOnlyElement(changes.getEdges(v, Change.REMOVED, Direction.OUT, "knows"));
-                        assertFalse(e1.property("weight").isPresent());
-                        assertEquals(v, e1.vertex(Direction.IN));
-                        e1 = Iterables.getOnlyElement(changes.getEdges(v, Change.ADDED, Direction.OUT, "knows"));
+                        JanusGraphEdge e1 = Iterables.getOnlyElement(changes.getEdges(v, Change.ADDED, Direction.OUT, "knows"));
                         assertEquals(44.4, e1.<Float>value("weight").doubleValue(), 0.01);
                         assertEquals(v, e1.vertex(Direction.IN));
                     }
