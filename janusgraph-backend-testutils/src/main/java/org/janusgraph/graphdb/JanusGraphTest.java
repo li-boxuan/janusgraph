@@ -1342,6 +1342,44 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         assertNotNull(tx.getEdgeLabel(e.label()));
     }
 
+    @Test
+    public void testBulkEdgeUpdate() {
+        clopen(option(DB_CACHE_SIZE), 0.0, option(TX_CACHE_SIZE), 0);
+        // create 500 vertices, and pair-wise edges
+        int numOfVertices = 100;
+        List<JanusGraphVertex> vertices = new ArrayList<>();
+        for (int i = 0; i < numOfVertices; i++) {
+            vertices.add(graph.addVertex());
+        }
+        graph.tx().commit();
+        List<Edge> edges = new ArrayList<>();
+        for (int i = 0; i < numOfVertices - 1; i++) {
+            for (int j = i + 1; j < numOfVertices; j++) {
+                JanusGraphVertex v1 = vertices.get(i);
+                JanusGraphVertex v2 = vertices.get(j);
+                edges.add(v1.addEdge("connects", v2, "prop", "value0"));
+            }
+            graph.tx().commit();
+        }
+
+        for (int i = 1; i < 5; i++) {
+            for (Edge e : edges) {
+                Edge edge = graph.traversal().E(e).next();
+                assertEquals("value" + (i - 1), edge.property("prop").value());
+                edge.property("prop", "value" + i);
+            }
+            graph.tx().commit();
+        }
+
+        long startTime = System.currentTimeMillis();
+        for (Edge e : edges) {
+            Edge edge = graph.traversal().E(e).next();
+            assertEquals("value4", edge.property("prop").value());
+        }
+        long elapsedTime = System.currentTimeMillis() - startTime;
+        System.out.println("elapsed time = " + elapsedTime);
+    }
+
     /**
      * Tests {@link org.janusgraph.graphdb.types.typemaker.DisableDefaultSchemaMaker} which throws Exceptions for
      * unknown labels and properties
