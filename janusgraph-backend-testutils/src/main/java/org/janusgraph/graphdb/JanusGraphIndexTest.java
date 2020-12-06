@@ -186,6 +186,123 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
         graphOfTheGods.tx().commit();
     }
 
+    @Test
+    public void testNeqQuery() {
+        makeKey("p2", String.class);
+        PropertyKey p3 = makeKey("p3", String.class);
+        PropertyKey p4 = makeKey("p4", String.class);
+        mgmt.buildIndex("composite", Vertex.class).addKey(p3).buildCompositeIndex();
+        mgmt.buildIndex("mixed", Vertex.class).addKey(p4, Mapping.STRING.asParameter()).buildMixedIndex(INDEX);
+        finishSchema();
+
+        tx.addVertex();
+        tx.commit();
+        newTx();
+
+        // property not registered in schema
+        assertFalse(tx.traversal().V().has("p1", P.neq("v")).hasNext());
+        assertFalse(tx.traversal().V().has("p1", P.neq(null)).hasNext());
+        // property registered in schema
+        assertFalse(tx.traversal().V().has("p2", P.neq("v")).hasNext());
+        assertFalse(tx.traversal().V().has("p2", P.neq(null)).hasNext());
+        // property registered in schema and has composite index
+        assertFalse(tx.traversal().V().has("p3", P.neq("v")).hasNext());
+        assertFalse(tx.traversal().V().has("p3", P.neq(null)).hasNext());
+        // property registered in schema and has mixed index
+        assertFalse(tx.traversal().V().has("p4", P.neq("v")).hasNext());
+        assertFalse(tx.traversal().V().has("p4", P.neq(null)).hasNext());
+    }
+
+    /**
+     * The behaviour of has(p, null) deviates from TinkerGraph. Since JanusGraph does not support null values,
+     * has(p, null) indicates hasNot(p). In other words, an absent property implicitly implies null value for that property.
+     */
+    @Test
+    public void testHasNullQuery() {
+        makeKey("p2", String.class);
+        PropertyKey p3 = makeKey("p3", String.class);
+        PropertyKey p4 = makeKey("p4", String.class);
+        mgmt.buildIndex("composite", Vertex.class).addKey(p3).buildCompositeIndex();
+        mgmt.buildIndex("mixed", Vertex.class).addKey(p4, Mapping.STRING.asParameter()).buildMixedIndex(INDEX);
+        finishSchema();
+
+        tx.addVertex();
+        tx.commit();
+        newTx();
+
+        // property not registered in schema
+        assertTrue(tx.traversal().V().has("p1", (Object) null).hasNext());
+        // property registered in schema
+        assertTrue(tx.traversal().V().has("p2", (Object) null).hasNext());
+        // property registered in schema and has composite index
+        assertTrue(tx.traversal().V().has("p3", (Object) null).hasNext());
+        // property registered in schema and has mixed index
+        assertTrue(tx.traversal().V().has("p4", (Object) null).hasNext());
+    }
+
+    /**
+     * The behaviour of hasNot(p) is straight-forward: hasNot(p) means it does not have such property p.
+     * Note that hasNot(p, value) (which is a JanusGraph API rather than gremlin API) is a bit tricky and it is equivalent
+     * to has(p, neq(value)). Therefore, hasNot(p, null) means has(p, neq(null)) which is equivalent to has(p).
+     */
+    @Test
+    public void testHasNot() {
+        makeKey("p2", String.class);
+        PropertyKey p3 = makeKey("p3", String.class);
+        PropertyKey p4 = makeKey("p4", String.class);
+        mgmt.buildIndex("composite", Vertex.class).addKey(p3).buildCompositeIndex();
+        mgmt.buildIndex("mixed", Vertex.class).addKey(p4, Mapping.STRING.asParameter()).buildMixedIndex(INDEX);
+        finishSchema();
+
+        tx.addVertex();
+        tx.commit();
+        newTx();
+
+        // property not registered in schema
+        assertTrue(tx.traversal().V().hasNot("p1").hasNext());
+        assertTrue(tx.query().hasNot("p1").vertices().iterator().hasNext());
+        assertFalse(tx.query().hasNot("p1", null).vertices().iterator().hasNext());
+        assertFalse(tx.query().hasNot("p1", "value").vertices().iterator().hasNext());
+        // property registered in schema
+        assertTrue(tx.traversal().V().hasNot("p2").hasNext());
+        assertTrue(tx.query().hasNot("p2").vertices().iterator().hasNext());
+        assertFalse(tx.query().hasNot("p2", null).vertices().iterator().hasNext());
+        assertFalse(tx.query().hasNot("p2", "value").vertices().iterator().hasNext());
+        // property registered in schema and has composite index
+        assertTrue(tx.traversal().V().hasNot("p3").hasNext());
+        assertTrue(tx.query().hasNot("p3").vertices().iterator().hasNext());
+        assertFalse(tx.query().hasNot("p3", null).vertices().iterator().hasNext());
+        assertFalse(tx.query().hasNot("p3", "value").vertices().iterator().hasNext());
+        // property registered in schema and has mixed index
+        assertTrue(tx.traversal().V().hasNot("p4").hasNext());
+        assertTrue(tx.query().hasNot("p4").vertices().iterator().hasNext());
+        assertFalse(tx.query().hasNot("p4", null).vertices().iterator().hasNext());
+        assertFalse(tx.query().hasNot("p4", "value").vertices().iterator().hasNext());
+    }
+
+    @Test
+    public void testNotHas() {
+        makeKey("p2", String.class);
+        PropertyKey p3 = makeKey("p3", String.class);
+        PropertyKey p4 = makeKey("p4", String.class);
+        mgmt.buildIndex("composite", Vertex.class).addKey(p3).buildCompositeIndex();
+        mgmt.buildIndex("mixed", Vertex.class).addKey(p4, Mapping.STRING.asParameter()).buildMixedIndex(INDEX);
+        finishSchema();
+
+        tx.addVertex();
+        tx.commit();
+        newTx();
+
+        // property not registered in schema
+        assertTrue(tx.traversal().V().not(__.has("p1")).hasNext());
+        // property registered in schema
+        assertTrue(tx.traversal().V().not(__.has("p2")).hasNext());
+        // property registered in schema and has composite index
+        assertTrue(tx.traversal().V().not(__.has("p3")).hasNext());
+        // property registered in schema and has mixed index
+        assertTrue(tx.traversal().V().not(__.has("p4")).hasNext());
+    }
+
     /**
      * Ensure clearing storage actually removes underlying graph and index databases.
      * @throws Exception

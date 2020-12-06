@@ -5503,18 +5503,6 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
 
     //................................................
 
-
-    @Test
-    public void testHasNot() {
-        JanusGraphVertex v1, v2;
-        v1 = graph.addVertex();
-
-        v2 = graph.query().hasNot("abcd").vertices().iterator().next();
-        assertEquals(v1, v2);
-        v2 = graph.query().hasNot("abcd", true).vertices().iterator().next();
-        assertEquals(v1, v2);
-    }
-
     @Test
     public void testVertexCentricIndexWithNull() {
         EdgeLabel bought = makeLabel("bought");
