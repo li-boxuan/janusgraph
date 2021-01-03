@@ -17,10 +17,12 @@ package org.janusgraph.hadoop.config;
 import org.janusgraph.diskstorage.Backend;
 import org.janusgraph.diskstorage.configuration.*;
 
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.ROOT_NS;
+
 public class JanusGraphHadoopConfiguration {
 
     public static final ConfigNamespace MAPRED_NS =
-            new ConfigNamespace(null, "janusgraphmr", "JanusGraph MapReduce configuration root");
+            new ConfigNamespace(ROOT_NS, "janusgraphmr", "JanusGraph MapReduce configuration root");
 
     // ScanJob configuration
 

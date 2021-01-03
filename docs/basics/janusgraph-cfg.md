@@ -223,6 +223,32 @@ Solr index configuration
 | index.[X].solr.wait-searcher | When mutating - wait for the index to reflect new mutations before returning. This can have a negative impact on performance. | Boolean | false | LOCAL |
 | index.[X].solr.zookeeper-url | URL of the Zookeeper instance coordinating the SolrCloud cluster | String[] | localhost:2181 | MASKABLE |
 
+### janusgraphmr.bulkload
+JanusGraph BulkLoaderVertexProgram configuration
+
+
+| Name | Description | Datatype | Default Value | Mutability |
+| ---- | ---- | ---- | ---- | ---- |
+| janusgraphmr.bulkload.filter-partitioned-vertices | Whether to enforce best-effort checks on edge multiplicity and property cardinality.  These checks do not read the existing properties and edges in JanusGraph.  They only consider those elements visible from a single MapReduce worker.  Hence, these checks do not guarantee that invalid input data will be detected and rejected. | Boolean | false | LOCAL |
+
+### janusgraphmr.ioformat
+JanusGraph input configuration
+
+
+| Name | Description | Datatype | Default Value | Mutability |
+| ---- | ---- | ---- | ---- | ---- |
+| janusgraphmr.ioformat.cf-name | The name of the column family from which the Hadoop input format should read.  Usually edgestore or graphindex. | String | edgestore | LOCAL |
+| janusgraphmr.ioformat.filter-partitioned-vertices | True to drop partitioned vertices and relations incident on partitioned vertices when reading from JanusGraph.  This currently must be true when partitioned vertices are present in the input; if it is false when a partitioned vertex is encountered, then an exception is thrown.  This limitation may be lifted in a later version of JanusGraph-Hadoop. | Boolean | false | LOCAL |
+
+### janusgraphmr.scanjob
+ScanJob configuration
+
+
+| Name | Description | Datatype | Default Value | Mutability |
+| ---- | ---- | ---- | ---- | ---- |
+| janusgraphmr.scanjob.class | A string in the form "PACKAGE.CLASS" representing the ScanJob to use.  Must have a no-arg constructor. | String | (no default value) | LOCAL |
+| janusgraphmr.scanjob.conf-root | A string in the form "PACKAGE.CLASS#STATICFIELD" representing the config namespace root to use for the ScanJob | String | (no default value) | LOCAL |
+
 ### log *
 Configuration options for JanusGraph's logging system
 
@@ -483,7 +509,7 @@ HBase storage options
 | storage.hbase.short-cf-names | Whether to shorten the names of JanusGraph's column families to one-character mnemonics to conserve storage space | Boolean | true | FIXED |
 | storage.hbase.skip-schema-check | Assume that JanusGraph's HBase table and column families already exist. When this is true, JanusGraph will not check for the existence of its table/CFs, nor will it attempt to create them under any circumstances.  This is useful when running JanusGraph without HBase admin privileges. | Boolean | false | MASKABLE |
 | storage.hbase.snapshot-name | The name of an existing HBase snapshot to be used by HBaseSnapshotInputFormat | String | janusgraph-snapshot | LOCAL |
-| storage.hbase.snapshot-restore-dir | The temporary directory to be used by HBaseSnapshotInputFormat to restore a snapshot. This directory should be on the same File System as the HBase root dir. | String | /tmp | LOCAL |
+| storage.hbase.snapshot-restore-dir | The temporary directory to be used by HBaseSnapshotInputFormat to restore a snapshot. This directory should be on the same File System as the HBase root dir. | String | /var/folders/yp/2cj6vm5j6rl3zhp2w2zs5_440000gn/T/ | LOCAL |
 | storage.hbase.table | The name of the table JanusGraph will use.  When storage.hbase.skip-schema-check is false, JanusGraph will automatically create this table if it does not already exist. If this configuration option is not provided but graph.graphname is, the table will be set to that value. | String | janusgraph | LOCAL |
 
 ### storage.lock
