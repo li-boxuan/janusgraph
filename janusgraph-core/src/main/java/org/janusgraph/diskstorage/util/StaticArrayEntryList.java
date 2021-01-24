@@ -49,7 +49,8 @@ public class StaticArrayEntryList extends AbstractList<Entry> implements EntryLi
         Preconditions.checkArgument(metaDataSchema!=null);
         this.data=data;
         this.limitAndValuePos=limitAndValuePos;
-        this.caches = new RelationCache[limitAndValuePos.length];
+//        this.caches = new RelationCache[limitAndValuePos.length];
+        this.caches = null;
         if (metaDataSchema.length==0) this.metaDataSchema = StaticArrayEntry.EMPTY_SCHEMA;
         else this.metaDataSchema = metaDataSchema;
     }
@@ -93,13 +94,14 @@ public class StaticArrayEntryList extends AbstractList<Entry> implements EntryLi
         return  16 + 3*8 // object
                 + data.length + 16 // data
                 + limitAndValuePos.length*8 + 16 // limitAndValuePos;
-                + caches.length*(40) + 16; // caches
+                /*+ caches.length*(40)*/ + 16; // caches. This assumes each RelationCache entry takes 40 bytes
     }
 
     private class StaticEntry extends BaseStaticArrayEntry {
 
         private final int index;
         private final Map<EntryMetaData,Object> metadata;
+        private RelationCache cache;
 
         public StaticEntry(final int index, final int offset, final int limit, final int valuePos,
                            final Map<EntryMetaData,Object> metadata) {
@@ -120,13 +122,13 @@ public class StaticArrayEntryList extends AbstractList<Entry> implements EntryLi
 
         @Override
         public RelationCache getCache() {
-            return caches[index];
+            return cache;
         }
 
         @Override
         public void setCache(RelationCache cache) {
             Preconditions.checkNotNull(cache);
-            caches[index] = cache;
+            this.cache = cache;
         }
 
     }
@@ -164,14 +166,12 @@ public class StaticArrayEntryList extends AbstractList<Entry> implements EntryLi
 
         @Override
         public RelationCache getCache() {
-            verifyAccess();
-            return caches[currentIndex];
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public void setCache(RelationCache cache) {
-            verifyAccess();
-            caches[currentIndex]=cache;
+            throw new UnsupportedOperationException();
         }
 
         public boolean hasMetaData() {

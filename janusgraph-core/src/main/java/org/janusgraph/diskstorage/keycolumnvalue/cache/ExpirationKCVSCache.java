@@ -21,6 +21,8 @@ import org.janusgraph.core.JanusGraphException;
 import org.janusgraph.diskstorage.*;
 import org.janusgraph.diskstorage.keycolumnvalue.*;
 import org.janusgraph.diskstorage.util.CacheMetricsAction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -37,6 +39,7 @@ import static org.janusgraph.util.datastructures.ByteSize.*;
  */
 public class ExpirationKCVSCache extends KCVSCache {
 
+    private static final Logger log = LoggerFactory.getLogger(ExpirationKCVSCache.class);
     //Weight estimation
     private static final int STATIC_ARRAY_BUFFER_SIZE = STATICARRAYBUFFER_RAW_SIZE + 10; // 10 = last number is average length
     private static final int KEY_QUERY_SIZE = OBJECT_HEADER + 4 + 1 + 3 * (OBJECT_REFERENCE + STATIC_ARRAY_BUFFER_SIZE); // object_size + int + boolean + 3 static buffers
@@ -53,6 +56,7 @@ public class ExpirationKCVSCache extends KCVSCache {
     private final long invalidationGracePeriodMS;
     private final CleanupThread cleanupThread;
 
+    private long totalWeight;
 
     public ExpirationKCVSCache(final KeyColumnValueStore store, String metricsName, final long cacheTimeMS, final long invalidationGracePeriodMS, final long maximumByteSize) {
         super(store, metricsName);
@@ -62,6 +66,9 @@ public class ExpirationKCVSCache extends KCVSCache {
         final int concurrencyLevel = Runtime.getRuntime().availableProcessors();
         Preconditions.checkArgument(invalidationGracePeriodMS >=0,"Invalid expiration grace period: %s", invalidationGracePeriodMS);
         this.invalidationGracePeriodMS = invalidationGracePeriodMS;
+
+        log.warn("creating ExpirationKCVSCache store, metrics name: {}, cacheTimeMS: {}, maxSize: {}",
+            metricsName, cacheTimeMS, maximumByteSize);
         CacheBuilder<KeySliceQuery,EntryList> cachebuilder = CacheBuilder.newBuilder()
                 .maximumWeight(maximumByteSize)
                 .concurrencyLevel(concurrencyLevel)
@@ -79,17 +86,25 @@ public class ExpirationKCVSCache extends KCVSCache {
 
     @Override
     public EntryList getSlice(final KeySliceQuery query, final StoreTransaction txh) throws BackendException {
+        log.warn("Get slice: query = {}", query);
         incActionBy(1, CacheMetricsAction.RETRIEVAL,txh);
         if (isExpired(query)) {
+            log.warn("Query is expired, calling backend to retrieve data");
             incActionBy(1, CacheMetricsAction.MISS,txh);
             return store.getSlice(query, unwrapTx(txh));
         }
 
         try {
-            return cache.get(query, () -> {
+            log.warn("Try getting from cache, calling backend if absent. Cache size is {}", cache.size());
+            EntryList result = cache.get(query, () -> {
                 incActionBy(1, CacheMetricsAction.MISS,txh);
-                return store.getSlice(query, unwrapTx(txh));
+                EntryList backendResult = store.getSlice(query, unwrapTx(txh));
+                log.warn("Loaded backend result and feed to cache. Weight = {}", GUAVA_CACHE_ENTRY_SIZE + KEY_QUERY_SIZE + backendResult.getByteSize());
+                totalWeight += GUAVA_CACHE_ENTRY_SIZE + KEY_QUERY_SIZE + backendResult.getByteSize();
+                return backendResult;
             });
+            log.warn("After getting result, now cache size is {}, total weight is {}", cache.size(), totalWeight);
+            return result;
         } catch (Exception e) {
             if (e instanceof JanusGraphException) throw (JanusGraphException)e;
             else if (e.getCause() instanceof JanusGraphException) throw (JanusGraphException)e.getCause();
@@ -122,7 +137,12 @@ public class ExpirationKCVSCache extends KCVSCache {
                 EntryList subresult = subresults.get(key);
                 if (subresult!=null) {
                     results.put(key,subresult);
-                    if (ksqs[i]!=null) cache.put(ksqs[i],subresult);
+                    if (ksqs[i]!=null) {
+                        cache.put(ksqs[i],subresult);
+                        log.warn("Feed remaining ones to cache. Weight = {}", GUAVA_CACHE_ENTRY_SIZE + KEY_QUERY_SIZE + subresult.getByteSize());
+                        totalWeight += GUAVA_CACHE_ENTRY_SIZE + KEY_QUERY_SIZE + subresult.getByteSize();
+                        log.warn("After getting result, now cache size is {}, total weight is {}", cache.size(), totalWeight);
+                    }
                 }
             }
         }

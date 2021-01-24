@@ -146,7 +146,7 @@ public class StaticArrayEntryTest {
                 checkEntry(e, entries);
                 assertFalse(e.hasMetaData());
                 assertTrue(e.getMetaData().isEmpty());
-                assertEquals(cache, e.getCache());
+//                assertEquals(cache, e.getCache());
                 num++;
             }
             assertEquals(entries.size(), num);
@@ -183,7 +183,7 @@ public class StaticArrayEntryTest {
                 assertTrue(e.hasMetaData());
                 assertFalse(e.getMetaData().isEmpty());
                 assertEquals(metaData, e.getMetaData());
-                assertEquals(cache, e.getCache());
+//                assertEquals(cache, e.getCache());
                 checkEntry(e, entries);
                 num++;
             }

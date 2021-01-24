@@ -42,6 +42,7 @@ public interface Entry extends StaticBuffer, MetaAnnotated {
      * Returns the cached parsed representation of this Entry if it exists, else NULL
      *
      * @return
+     * @throws UnsupportedOperationException
      */
     RelationCache getCache();
 
@@ -50,6 +51,7 @@ public interface Entry extends StaticBuffer, MetaAnnotated {
      * so a previously set representation would simply be overwritten.
      *
      * @param cache
+     * @throws UnsupportedOperationException
      */
     void setCache(RelationCache cache);
 }
