@@ -40,8 +40,8 @@ public class StaticArrayEntryList extends AbstractList<Entry> implements EntryLi
     private final long[] limitAndValuePos;
 
     // ---- Transient fields ----
-    private final RelationCache[] caches;
     private final EntryMetaData[] metaDataSchema;
+    private final boolean[] shouldBeCached;
 
     private StaticArrayEntryList(final byte[] data, final long[] limitAndValuePos, final EntryMetaData[] metaDataSchema) {
         Preconditions.checkArgument(data != null && data.length > 0);
@@ -49,9 +49,9 @@ public class StaticArrayEntryList extends AbstractList<Entry> implements EntryLi
         Preconditions.checkArgument(metaDataSchema!=null);
         this.data=data;
         this.limitAndValuePos=limitAndValuePos;
-        this.caches = new RelationCache[limitAndValuePos.length];
         if (metaDataSchema.length==0) this.metaDataSchema = StaticArrayEntry.EMPTY_SCHEMA;
         else this.metaDataSchema = metaDataSchema;
+        this.shouldBeCached = new boolean[data.length];
     }
 
     private static int getLimit(long limitAndValuePos) {
@@ -92,14 +92,14 @@ public class StaticArrayEntryList extends AbstractList<Entry> implements EntryLi
     public int getByteSize() {
         return  16 + 3*8 // object
                 + data.length + 16 // data
-                + limitAndValuePos.length*8 + 16 // limitAndValuePos;
-                + caches.length*(40) + 16; // caches
+                + limitAndValuePos.length*8 + 16; // limitAndValuePos;
     }
 
     private class StaticEntry extends BaseStaticArrayEntry {
 
         private final int index;
         private final Map<EntryMetaData,Object> metadata;
+        private RelationCache cache;
 
         public StaticEntry(final int index, final int offset, final int limit, final int valuePos,
                            final Map<EntryMetaData,Object> metadata) {
@@ -120,13 +120,17 @@ public class StaticArrayEntryList extends AbstractList<Entry> implements EntryLi
 
         @Override
         public RelationCache getCache() {
-            return caches[index];
+            if (cache == null && shouldBeCached[index]) {
+                throw new IllegalStateException("This shall be cached but not!");
+            }
+            return cache;
         }
 
         @Override
         public void setCache(RelationCache cache) {
             Preconditions.checkNotNull(cache);
-            caches[index] = cache;
+            shouldBeCached[index] = true;
+            this.cache = cache;
         }
 
     }
@@ -164,14 +168,12 @@ public class StaticArrayEntryList extends AbstractList<Entry> implements EntryLi
 
         @Override
         public RelationCache getCache() {
-            verifyAccess();
-            return caches[currentIndex];
+            return null;
         }
 
         @Override
         public void setCache(RelationCache cache) {
-            verifyAccess();
-            caches[currentIndex]=cache;
+            throw new UnsupportedOperationException();
         }
 
         public boolean hasMetaData() {

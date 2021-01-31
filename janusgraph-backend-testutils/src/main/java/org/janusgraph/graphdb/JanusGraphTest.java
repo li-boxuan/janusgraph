@@ -6030,6 +6030,54 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
     }
 
     @Test
+    public void testDBCache() {
+        clopen(option(DB_CACHE), true, option(DB_CACHE_SIZE), 50000000.0, option(DB_CACHE_TIME), 0L); // 50 MB
+
+        // Schema creation
+        graph.tx().rollback();
+
+        VertexLabel deviceLabel = mgmt.makeVertexLabel("device").make();
+        PropertyKey nameProperty = mgmt.makePropertyKey("name").dataType(String.class).cardinality(Cardinality.SINGLE).make();
+        mgmt.addProperties(deviceLabel, nameProperty);
+
+        EdgeLabel measurementLabel = mgmt.makeEdgeLabel("measurement").unidirected().make();
+        PropertyKey deviceNameProperty = mgmt.makePropertyKey("deviceName").dataType(String.class).cardinality(Cardinality.SINGLE).make();
+        PropertyKey physicalQuantityProperty = mgmt.makePropertyKey("physicalQuantity").dataType(String.class).cardinality(Cardinality.SINGLE).make();
+        PropertyKey valueProperty = mgmt.makePropertyKey("value").dataType(Double.class).cardinality(Cardinality.SINGLE).make();
+        PropertyKey timestampProperty = mgmt.makePropertyKey("timestamp").dataType(Date.class).cardinality(Cardinality.SINGLE).make();
+
+        mgmt.addProperties(measurementLabel, deviceNameProperty, physicalQuantityProperty, valueProperty, timestampProperty);
+        mgmt.buildIndex("deviceByName", Vertex.class).indexOnly(deviceLabel).addKey(nameProperty).buildCompositeIndex();
+        mgmt.commit();
+
+        GraphTraversalSource g = graph.traversal();
+        // Load data
+        Random random = new Random();
+        long startTs = System.currentTimeMillis();
+        for (int i = 0; i < 100; i++) {
+            long deviceId = (long) g.addV("device").property("name", "device-" + i).id().next();
+            for (int k = 0; k < 5; k++) {
+                g.V(deviceId).addE("measurement").
+                    property("deviceName",  "device-" + i).
+                    property("physicalQuantity", "physicalQuantity-" + random.nextInt(10)).
+                    property("value", random.nextDouble()).
+                    property("timestamp", new Date(startTs + k * 1000)).next();
+                if (k % 1000 == 0) {
+                    g.tx().commit();
+                }
+            }
+            log.info("Done i={}",i);
+        }
+        g.tx().commit();
+
+        // Request data
+        for (int i = 0; i < 100; i++) {
+            g.V().has("device", "name", "device-" + i).outE().valueMap().toList();
+        }
+        g.tx().commit();
+    }
+
+    @Test
     @Tag(TestCategory.BRITTLE_TESTS)
     @FeatureFlag(feature = JanusGraphFeature.CellTtl)
     public void testEdgeTTLLimitedByVertexTTL() throws Exception {
