@@ -1020,6 +1020,74 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
     }
 
     @Test
+    public void removePropertyInList(){
+        final String OTHER = "other";
+        final String EXTRA = "extra";
+        final String SOME_IDS = "someIds";
+        PropertyKey other = mgmt.makePropertyKey(OTHER).dataType(String.class).cardinality(Cardinality.SINGLE).make();
+        PropertyKey extra = mgmt.makePropertyKey(EXTRA).dataType(String.class).cardinality(Cardinality.SINGLE).make();
+        PropertyKey some_ids = mgmt.makePropertyKey(SOME_IDS).dataType(String.class).cardinality(Cardinality.SET).make();
+        mgmt.buildIndex("vertices", Vertex.class).addKey(other).addKey(extra).addKey(some_ids).buildMixedIndex(INDEX);
+        finishSchema();
+
+        int foundInSolr=0;
+        for (int i=0;i<50;i++) {
+            String[] someIds = {"3", "1","2"};
+
+
+            //Create vertex
+            Vertex article = graph.addVertex("Article");
+
+            article.property(OTHER,"kalle");
+            article.property(EXTRA,"204");
+            for (String s : someIds) {
+                article.property(SOME_IDS, s);
+            }
+            graph.tx().commit();
+
+            // remove all but one value on someIds parameter with Cardinality SET
+            article.properties(SOME_IDS).forEachRemaining(v -> {
+                if (!v.value().equals("2")){
+                    v.remove();
+                }
+            });
+
+            // works correct when using an extra commmit
+            //g.tx().commit();
+
+            // the remove another property, works correct if we do not remove another property
+            article.property(OTHER).remove();
+
+
+            graph.tx().commit();
+
+            // count nr of id's
+            final AtomicInteger count=new AtomicInteger(0);
+            article.properties(SOME_IDS).forEachRemaining(p->count.incrementAndGet());
+            // verify found in database
+            assertEquals(1,count.get());
+
+            // look for it through solr index and make sure we find the one we just created
+
+            clopen(option(FORCE_INDEX_USAGE), true);
+//            boolean foundV = graph.indexQuery("vertices", "v.someIds:(2)").vertexStream().filter(v->v.getElement().id().equals(article.id())).count() ==1;
+            boolean foundV = graph.traversal().V().has("someIds", Text.textContains("2")).toList().stream().filter(v->v.id().equals(article.id())).count() ==1;
+            if (foundV){
+                foundInSolr++;
+            }
+
+            //It's correct in the database, but when running this 50 times and having a look in solr,
+            // we find the property someIds is empty in about 20% of the cases
+            // If we do not remove "another" property, it works, or if we do an extra commit,
+            // between the removes it also works as expected
+
+        }
+        System.out.println("solrCount "+foundInSolr);
+        assertEquals(50,foundInSolr);
+
+    }
+
+    @Test
     public void testGraphCentricQueryProfiling() {
         final PropertyKey name = makeKey("name", String.class);
         final PropertyKey prop = makeKey("prop", String.class);
