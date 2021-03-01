@@ -213,8 +213,10 @@ public class CQLStoreManager extends DistributedStoreManager implements KeyColum
         fb.optimisticLocking(true);
         fb.multiQuery(false);
 
-        final String partitioner = this.session.getMetadata().getTokenMap().get().getPartitionerName();
+//        final String partitioner = this.session.getMetadata().getTokenMap().get().getPartitionerName();
+        final String partitioner = "com.amazonaws.cassandra.DefaultPartitioner";
         switch (partitioner.substring(partitioner.lastIndexOf('.') + 1)) {
+            case "DefaultPartitioner": // com.amazonaws.cassandra.DefaultPartitioner
             case "RandomPartitioner":
             case "Murmur3Partitioner": {
                 fb.keyOrdered(false).orderedScan(false).unorderedScan(true);
@@ -297,6 +299,10 @@ public class CQLStoreManager extends DistributedStoreManager implements KeyColum
             configLoaderBuilder.withDuration(DefaultDriverOption.HEARTBEAT_TIMEOUT,
                 Duration.ofMillis(configuration.get(HEARTBEAT_TIMEOUT)));
         }
+
+        // TODO: make them configurable
+        configLoaderBuilder.withBoolean(DefaultDriverOption.METADATA_SCHEMA_ENABLED, false);
+        configLoaderBuilder.withBoolean(DefaultDriverOption.METADATA_TOKEN_MAP_ENABLED, false);
 
         // Keep to 0 for the time being: https://groups.google.com/a/lists.datastax.com/forum/#!topic/java-driver-user/Bc0gQuOVVL0
         // Ideally we want to batch all tables initialisations to happen together when opening a new keyspace

@@ -53,10 +53,13 @@ import org.janusgraph.diskstorage.keycolumnvalue.KeySlicesIterator;
 import org.janusgraph.diskstorage.keycolumnvalue.MultiSlicesQuery;
 import org.janusgraph.diskstorage.keycolumnvalue.SliceQuery;
 import org.janusgraph.diskstorage.keycolumnvalue.StoreTransaction;
+import org.janusgraph.diskstorage.log.kcvs.KCVSLog;
 import org.janusgraph.diskstorage.util.RecordIterator;
 import org.janusgraph.diskstorage.util.StaticArrayBuffer;
 import org.janusgraph.diskstorage.util.StaticArrayEntry.GetColVal;
 import org.janusgraph.diskstorage.util.StaticArrayEntryList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -90,6 +93,7 @@ import static org.janusgraph.diskstorage.cql.CQLTransaction.getTransaction;
  */
 public class CQLKeyColumnValueStore implements KeyColumnValueStore {
 
+    private static final Logger log = LoggerFactory.getLogger(CQLKeyColumnValueStore.class);
     private static final String TTL_FUNCTION_NAME = "ttl";
     private static final String WRITETIME_FUNCTION_NAME = "writetime";
 
@@ -152,8 +156,8 @@ public class CQLKeyColumnValueStore implements KeyColumnValueStore {
         this.getSlice = this.session.prepare(selectFrom(this.storeManager.getKeyspaceName(), this.tableName)
                 .column(COLUMN_COLUMN_NAME)
                 .column(VALUE_COLUMN_NAME)
-                .function(WRITETIME_FUNCTION_NAME, column(VALUE_COLUMN_NAME)).as(WRITETIME_COLUMN_NAME)
-                .function(TTL_FUNCTION_NAME, column(VALUE_COLUMN_NAME)).as(TTL_COLUMN_NAME)
+//                .function(WRITETIME_FUNCTION_NAME, column(VALUE_COLUMN_NAME)).as(WRITETIME_COLUMN_NAME)
+//                .function(TTL_FUNCTION_NAME, column(VALUE_COLUMN_NAME)).as(TTL_COLUMN_NAME)
                 .where(
                     Relation.column(KEY_COLUMN_NAME).isEqualTo(bindMarker(KEY_BINDING)),
                     Relation.column(COLUMN_COLUMN_NAME).isGreaterThanOrEqualTo(bindMarker(SLICE_START_BINDING)),
@@ -165,13 +169,13 @@ public class CQLKeyColumnValueStore implements KeyColumnValueStore {
                 .column(KEY_COLUMN_NAME)
                 .column(COLUMN_COLUMN_NAME)
                 .column(VALUE_COLUMN_NAME)
-                .function(WRITETIME_FUNCTION_NAME, column(VALUE_COLUMN_NAME)).as(WRITETIME_COLUMN_NAME)
-                .function(TTL_FUNCTION_NAME, column(VALUE_COLUMN_NAME)).as(TTL_COLUMN_NAME)
+//                .function(WRITETIME_FUNCTION_NAME, column(VALUE_COLUMN_NAME)).as(WRITETIME_COLUMN_NAME)
+//                .function(TTL_FUNCTION_NAME, column(VALUE_COLUMN_NAME)).as(TTL_COLUMN_NAME)
                 .allowFiltering()
-                .where(
-                    Relation.token(KEY_COLUMN_NAME).isGreaterThanOrEqualTo(bindMarker(KEY_START_BINDING)),
-                    Relation.token(KEY_COLUMN_NAME).isLessThan(bindMarker(KEY_END_BINDING))
-                )
+//                .where(
+//                    Relation.token(KEY_COLUMN_NAME).isGreaterThanOrEqualTo(bindMarker(KEY_START_BINDING)),
+//                    Relation.token(KEY_COLUMN_NAME).isLessThan(bindMarker(KEY_END_BINDING))
+//                )
                 .whereColumn(COLUMN_COLUMN_NAME).isGreaterThanOrEqualTo(bindMarker(SLICE_START_BINDING))
                 .whereColumn(COLUMN_COLUMN_NAME).isLessThanOrEqualTo(bindMarker(SLICE_END_BINDING))
                 .build());
@@ -180,15 +184,15 @@ public class CQLKeyColumnValueStore implements KeyColumnValueStore {
                 .column(KEY_COLUMN_NAME)
                 .column(COLUMN_COLUMN_NAME)
                 .column(VALUE_COLUMN_NAME)
-                .function(WRITETIME_FUNCTION_NAME, column(VALUE_COLUMN_NAME)).as(WRITETIME_COLUMN_NAME)
-                .function(TTL_FUNCTION_NAME, column(VALUE_COLUMN_NAME)).as(TTL_COLUMN_NAME)
+//                .function(WRITETIME_FUNCTION_NAME, column(VALUE_COLUMN_NAME)).as(WRITETIME_COLUMN_NAME)
+//                .function(TTL_FUNCTION_NAME, column(VALUE_COLUMN_NAME)).as(TTL_COLUMN_NAME)
                 .allowFiltering()
                 .whereColumn(COLUMN_COLUMN_NAME).isGreaterThanOrEqualTo(bindMarker(SLICE_START_BINDING))
                 .whereColumn(COLUMN_COLUMN_NAME).isLessThanOrEqualTo(bindMarker(SLICE_END_BINDING))
                 .build());
 
         this.deleteColumn = this.session.prepare(deleteFrom(this.storeManager.getKeyspaceName(), this.tableName)
-                .usingTimestamp(bindMarker(TIMESTAMP_BINDING))
+//                .usingTimestamp(bindMarker(TIMESTAMP_BINDING))
                 .whereColumn(KEY_COLUMN_NAME).isEqualTo(bindMarker(KEY_BINDING))
                 .whereColumn(COLUMN_COLUMN_NAME).isEqualTo(bindMarker(COLUMN_BINDING))
                 .build());
@@ -196,15 +200,15 @@ public class CQLKeyColumnValueStore implements KeyColumnValueStore {
         this.insertColumn = this.session.prepare(insertInto(this.storeManager.getKeyspaceName(), this.tableName)
                 .value(KEY_COLUMN_NAME, bindMarker(KEY_BINDING))
                 .value(COLUMN_COLUMN_NAME, bindMarker(COLUMN_BINDING))
-                .value(VALUE_COLUMN_NAME, bindMarker(VALUE_BINDING))
-                .usingTimestamp(bindMarker(TIMESTAMP_BINDING)).build());
+                .value(VALUE_COLUMN_NAME, bindMarker(VALUE_BINDING)).build());
+//                .usingTimestamp(bindMarker(TIMESTAMP_BINDING)).build());
 
         this.insertColumnWithTTL = this.session.prepare(insertInto(this.storeManager.getKeyspaceName(), this.tableName)
                 .value(KEY_COLUMN_NAME, bindMarker(KEY_BINDING))
                 .value(COLUMN_COLUMN_NAME, bindMarker(COLUMN_BINDING))
-                .value(VALUE_COLUMN_NAME, bindMarker(VALUE_BINDING))
-                .usingTimestamp(bindMarker(TIMESTAMP_BINDING))
-                .usingTtl(bindMarker(TTL_BINDING)).build());
+                .value(VALUE_COLUMN_NAME, bindMarker(VALUE_BINDING)).build());
+//                .usingTimestamp(bindMarker(TIMESTAMP_BINDING))
+//                .usingTtl(bindMarker(TTL_BINDING)).build());
         // @formatter:on
     }
 
@@ -280,6 +284,7 @@ public class CQLKeyColumnValueStore implements KeyColumnValueStore {
 
     @Override
     public EntryList getSlice(final KeySliceQuery query, final StoreTransaction txh) throws BackendException {
+//        log.warn("getSlice, consistency level is {}", getTransaction(txh));
         final Future<EntryList> result = Future.fromJavaFuture(
                 this.executorService,
                 this.session.executeAsync(this.getSlice.boundStatementBuilder()
@@ -357,8 +362,8 @@ public class CQLKeyColumnValueStore implements KeyColumnValueStore {
 
         return this.deleteColumn.boundStatementBuilder()
             .setByteBuffer(KEY_BINDING, key.asByteBuffer())
-            .setByteBuffer(COLUMN_BINDING, column.asByteBuffer())
-            .setLong(TIMESTAMP_BINDING, timestamp).build();
+            .setByteBuffer(COLUMN_BINDING, column.asByteBuffer()).build();
+//            .setLong(TIMESTAMP_BINDING, timestamp).build();
     }
 
     /*
@@ -371,15 +376,15 @@ public class CQLKeyColumnValueStore implements KeyColumnValueStore {
             return this.insertColumnWithTTL.boundStatementBuilder()
                 .setByteBuffer(KEY_BINDING, key.asByteBuffer())
                 .setByteBuffer(COLUMN_BINDING, entry.getColumn().asByteBuffer())
-                .setByteBuffer(VALUE_BINDING, entry.getValue().asByteBuffer())
-                .setLong(TIMESTAMP_BINDING, timestamp)
-                .setInt(TTL_BINDING, ttl).build();
+                .setByteBuffer(VALUE_BINDING, entry.getValue().asByteBuffer()).build();
+//                .setLong(TIMESTAMP_BINDING, timestamp)
+//                .setInt(TTL_BINDING, ttl).build();
         }
         return this.insertColumn.boundStatementBuilder()
             .setByteBuffer(KEY_BINDING, key.asByteBuffer())
             .setByteBuffer(COLUMN_BINDING, entry.getColumn().asByteBuffer())
-            .setByteBuffer(VALUE_BINDING, entry.getValue().asByteBuffer())
-            .setLong(TIMESTAMP_BINDING, timestamp).build();
+            .setByteBuffer(VALUE_BINDING, entry.getValue().asByteBuffer()).build();
+//            .setLong(TIMESTAMP_BINDING, timestamp).build();
     }
 
     @Override
