@@ -302,6 +302,7 @@ public class ElasticSearchIndex implements IndexProvider {
             case FIVE:
                 compat = new ES5Compat();
                 break;
+            case SEVEN:
             case SIX:
                 compat = new ES6Compat();
                 break;
