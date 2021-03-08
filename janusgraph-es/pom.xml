@@ -12,7 +12,7 @@
     <properties>
         <top.level.basedir>${basedir}/..</top.level.basedir>
         <elasticsearch60.docker.version>6.0.1</elasticsearch60.docker.version>
-        <elasticsearch6.docker.version>6.6.0</elasticsearch6.docker.version>
+        <elasticsearch6.docker.version>6.1.0</elasticsearch6.docker.version>
         <elasticsearch7.docker.version>7.6.2</elasticsearch7.docker.version>
         <elasticsearch.docker.version>${elasticsearch7.docker.version}</elasticsearch.docker.version>
         <skip.es.test>${skipTests}</skip.es.test>
