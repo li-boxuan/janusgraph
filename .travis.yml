@@ -71,76 +71,76 @@ jobs:
       script: mvn install -pl janusgraph-dist -Pjanusgraph-release -Dgpg.skip=true
       if: commit_message !~ /\[doc only\]/
 
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='lucene'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='solr' ARGS='-Pdocker,solr7'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='lucene'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='solr' ARGS='-Pdocker,solr7'
     - <<: *STANDARD_TEST_JOB
       env: MODULE='es' ARGS='-Pelasticsearch7'
     - <<: *STANDARD_TEST_JOB
       env: MODULE='es' ARGS='-Pelasticsearch6'
     - <<: *STANDARD_TEST_JOB
       env: MODULE='es' ARGS='-Pelasticsearch60'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='berkeleyje'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='driver'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='test'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='inmemory' ARGS='-Dtest.skip.tp=false'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cassandra' ARGS='-Pcassandra2-byteordered -Dtest=**/diskstorage/cassandra/thrift/*'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cassandra' ARGS='-Pcassandra2-murmur -Dtest=**/diskstorage/cassandra/thrift/*'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cassandra' ARGS='-Pcassandra2-murmur-ssl -Dtest=**/diskstorage/cassandra/thrift/ThriftStoreTest.java'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cassandra' ARGS='-Pcassandra2-byteordered -Dtest=**/graphdb/thrift/*'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cassandra' ARGS='-Pcassandra2-murmur -Dtest=**/graphdb/thrift/*'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='berkeleyje'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='driver'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='test'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='inmemory' ARGS='-Dtest.skip.tp=false'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cassandra' ARGS='-Pcassandra2-byteordered -Dtest=**/diskstorage/cassandra/thrift/*'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cassandra' ARGS='-Pcassandra2-murmur -Dtest=**/diskstorage/cassandra/thrift/*'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cassandra' ARGS='-Pcassandra2-murmur-ssl -Dtest=**/diskstorage/cassandra/thrift/ThriftStoreTest.java'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cassandra' ARGS='-Pcassandra2-byteordered -Dtest=**/graphdb/thrift/*'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cassandra' ARGS='-Pcassandra2-murmur -Dtest=**/graphdb/thrift/*'
+#
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cassandra' ARGS='-Pcassandra2-byteordered -Dtest=**/diskstorage/cassandra/astyanax/*'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cassandra' ARGS='-Pcassandra2-murmur -Dtest=**/diskstorage/cassandra/astyanax/*'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cassandra' ARGS='-Pcassandra2-murmur-ssl -Dtest=**/diskstorage/cassandra/astyanax/AstyanaxStoreTest.java'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cassandra' ARGS='-Pcassandra2-byteordered -Dtest=**/graphdb/astyanax/*'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cassandra' ARGS='-Pcassandra2-murmur -Dtest=**/graphdb/astyanax/*'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cassandra' ARGS='-Dtest=**/diskstorage/cassandra/embedded/*'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cassandra' ARGS='-Dtest=***/cassandra/*,*/graphdb/embedded/*'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cassandra' ARGS='-Pcassandra2-murmur -Dtest=**/hadoop/*'
 
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cassandra' ARGS='-Pcassandra2-byteordered -Dtest=**/diskstorage/cassandra/astyanax/*'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cassandra' ARGS='-Pcassandra2-murmur -Dtest=**/diskstorage/cassandra/astyanax/*'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cassandra' ARGS='-Pcassandra2-murmur-ssl -Dtest=**/diskstorage/cassandra/astyanax/AstyanaxStoreTest.java'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cassandra' ARGS='-Pcassandra2-byteordered -Dtest=**/graphdb/astyanax/*'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cassandra' ARGS='-Pcassandra2-murmur -Dtest=**/graphdb/astyanax/*'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cassandra' ARGS='-Dtest=**/diskstorage/cassandra/embedded/*'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cassandra' ARGS='-Dtest=***/cassandra/*,*/graphdb/embedded/*'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cassandra' ARGS='-Pcassandra2-murmur -Dtest=**/hadoop/*'
-
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='hbase-parent/janusgraph-hbase-10' ARGS='-Dtest=**/diskstorage/hbase/*'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='hbase-parent/janusgraph-hbase-10' ARGS='-Dtest=**/graphdb/hbase/*'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='hbase-parent/janusgraph-hbase-10' ARGS='-Dtest=**/hadoop/*'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='hbase-parent/janusgraph-hbase-10' INSTALL_ARGS='-Dhbase.profile -Phbase2' ARGS='-Dtest=**/diskstorage/hbase/* -Dhbase.profile -Phbase2'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='hbase-parent/janusgraph-hbase-10' INSTALL_ARGS='-Dhbase.profile -Phbase2' ARGS='-Dtest=**/graphdb/hbase/* -Dhbase.profile -Phbase2'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='hbase-parent/janusgraph-hbase-10' INSTALL_ARGS='-Dhbase.profile -Phbase2' ARGS='-Dtest=**/hadoop/* -Dhbase.profile -Phbase2'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cql' ARGS='-Pcassandra2-byteordered -Dtest=**/diskstorage/cql/*'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cql' ARGS='-Pcassandra2-murmur -Dtest=**/diskstorage/cql/*'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cql' ARGS='-Pcassandra2-murmur-ssl -Dtest=**/diskstorage/cql/CQLStoreTest.java'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cql' ARGS='-Pcassandra2-byteordered -Dtest=**/graphdb/cql/*'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cql' ARGS='-Pcassandra2-murmur -Dtest=**/graphdb/cql/*'
-    - <<: *STANDARD_TEST_JOB
-      env: MODULE='cql' ARGS='-Pcassandra2-murmur -Dtest=**/hadoop/*'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='hbase-parent/janusgraph-hbase-10' ARGS='-Dtest=**/diskstorage/hbase/*'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='hbase-parent/janusgraph-hbase-10' ARGS='-Dtest=**/graphdb/hbase/*'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='hbase-parent/janusgraph-hbase-10' ARGS='-Dtest=**/hadoop/*'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='hbase-parent/janusgraph-hbase-10' INSTALL_ARGS='-Dhbase.profile -Phbase2' ARGS='-Dtest=**/diskstorage/hbase/* -Dhbase.profile -Phbase2'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='hbase-parent/janusgraph-hbase-10' INSTALL_ARGS='-Dhbase.profile -Phbase2' ARGS='-Dtest=**/graphdb/hbase/* -Dhbase.profile -Phbase2'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='hbase-parent/janusgraph-hbase-10' INSTALL_ARGS='-Dhbase.profile -Phbase2' ARGS='-Dtest=**/hadoop/* -Dhbase.profile -Phbase2'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cql' ARGS='-Pcassandra2-byteordered -Dtest=**/diskstorage/cql/*'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cql' ARGS='-Pcassandra2-murmur -Dtest=**/diskstorage/cql/*'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cql' ARGS='-Pcassandra2-murmur-ssl -Dtest=**/diskstorage/cql/CQLStoreTest.java'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cql' ARGS='-Pcassandra2-byteordered -Dtest=**/graphdb/cql/*'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cql' ARGS='-Pcassandra2-murmur -Dtest=**/graphdb/cql/*'
+#    - <<: *STANDARD_TEST_JOB
+#      env: MODULE='cql' ARGS='-Pcassandra2-murmur -Dtest=**/hadoop/*'
 
     - <<: *FULL_BUILD_JOB
       env: MODULE='cql' ARGS='-Dtest=**/graphdb/cql/* -Dtest.skip.byteorderedpartitioner=true -Dtest.skip.murmur-serial=true -Dtest.skip.murmur-ssl=true'
