@@ -21,5 +21,5 @@ COPY requirements.txt /mkdocs/
 WORKDIR /mkdocs
 VOLUME /mkdocs
 
-RUN apk --no-cache --no-progress add py3-regex py3-pip py3-wheel \
+RUN apk --no-cache --no-progress add gcc musl-dev python3-dev py3-regex py3-pip py3-wheel \
   && pip3 install --user -r requirements.txt
