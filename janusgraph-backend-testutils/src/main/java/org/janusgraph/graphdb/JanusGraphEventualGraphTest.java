@@ -175,6 +175,7 @@ public abstract class JanusGraphEventualGraphTest extends JanusGraphBaseTest {
 
         // Verify that the property value is unchanged
         assertEquals("15", afterTx5.value(age));
+        assertEquals(true, false);
     }
 
     /**
