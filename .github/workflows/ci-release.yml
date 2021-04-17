@@ -94,9 +94,9 @@ jobs:
             args: "-Pcassandra3-byteordered -Dtest.skip.tp=false -DskipTests=true"
           - module: cql
             args: "-Pcassandra3-murmur -Dtest.skip.tp=false -DskipTests=true"
-          - module: hbase-parent/janusgraph-hbase-10
+          - module: hbase
             args: "-Dtest.skip.tp=false -DskipTests=true"
-          - module: hbase-parent/janusgraph-hbase-10
+          - module: hbase
             install-args: "-Dhbase.profile -Phbase2"
             args: "-Dtest.skip.tp=false -DskipTests=true"
     steps:
@@ -111,4 +111,6 @@ jobs:
         with:
           java-version: 1.8
       - run: mvn clean install --projects janusgraph-${{ matrix.module }} ${{ env.BUILD_MAVEN_OPTS }} ${{ matrix.install-args }}
+      - name: Add hbase-docker to /etc/hosts
+        run: echo "127.0.0.1 hbase-docker" | sudo tee -a /etc/hosts
       - run: mvn verify --projects janusgraph-${{ matrix.module }} ${{ matrix.args }}

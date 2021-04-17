@@ -91,7 +91,24 @@
                     <groupId>org.apache.commons</groupId>
                     <artifactId>commons-compress</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>org.ow2.asm</groupId>
+                    <artifactId>asm</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.ow2.asm</groupId>
+                    <artifactId>asm</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.htrace</groupId>
+                    <artifactId>htrace-core4</artifactId>
+                </exclusion>
             </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.htrace</groupId>
+            <artifactId>htrace-core4</artifactId>
+            <version>4.2.0-incubating</version>
         </dependency>
 
         <!-- JANUSGRAPH -->

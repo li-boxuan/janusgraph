@@ -156,6 +156,24 @@ mvn clean install -pl janusgraph-cql -Dcassandra.docker.image=cassandra
 mvn clean install -pl janusgraph-cql -Dcassandra.docker.image=cassandra -Dcassandra.docker.version=3.11.2
 ```
 
+### Running hbase tests
+
+**Note** Running HBase tests require Docker and an extra hbase configuration 
+is required for DNS tests.
+
+The JanusGraph HBase tests require that `hbase-docker` is resolveable. 
+To make it resolve able you can use `echo "127.0.0.1 hbase-docker" | sudo tee -a /etc/hosts`.
+
+### Special versions of HBase
+
+System properties to configure HBase test executions:
+
+| Property | Description | Default value |
+| -------- | ----------- | ------------- |
+| `hbase.docker.version` | HBase version to be used in the docker image. | `2.2.4` |
+| `hbase.docker.uid` | Uid used to run inside HBase of the container | 1000 |
+| `hbase.docker.gid` | Gid used to run inside HBase of the container | 1000 |
+
 ### TinkerPop tests
 
 The CQL backend is tested with TinkerPop tests using following command. 
