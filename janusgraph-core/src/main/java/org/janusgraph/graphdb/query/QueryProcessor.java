@@ -146,7 +146,7 @@ public class QueryProcessor<Q extends ElementQuery<R, B>, R extends JanusGraphEl
                 backendQueryHolder.getBackendQuery().updateLimit(MAX_SORT_ITERATION),
                 backendQueryHolder.getExecutionInfo(),backendQueryHolder.getProfiler())
                 .forEachRemaining(all::add);
-            if (all.size() >= MAX_SORT_ITERATION)
+            if (all.size() >= MAX_SORT_ITERATION) // if backend has more than MAX_SORT_ITERATION results, we cannot give a sorted answer
                 throw new QueryException("Could not execute query since pre-sorting requires fetching more than " +
                         MAX_SORT_ITERATION + " elements. Consider rewriting the query to exploit sort orders");
             all.sort(query.getSortOrder());

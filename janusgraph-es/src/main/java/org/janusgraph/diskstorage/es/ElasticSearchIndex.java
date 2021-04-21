@@ -1118,7 +1118,7 @@ public class ElasticSearchIndex implements IndexProvider {
         if (!query.getOrder().isEmpty()) {
             addOrderToQuery(informations, sr, query.getOrder(), query.getStore());
         }
-        sr.setFrom(0);
+        sr.setFrom(query.getOffset());
         if (query.hasLimit()) {
             sr.setSize(Math.min(query.getLimit(), batchSize));
         } else {

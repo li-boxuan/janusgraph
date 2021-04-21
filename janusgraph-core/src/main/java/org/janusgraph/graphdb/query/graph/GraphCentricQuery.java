@@ -62,8 +62,8 @@ public class GraphCentricQuery extends BaseQuery implements ElementQuery<JanusGr
     private QueryProfiler profiler;
 
     public GraphCentricQuery(ElementCategory resultType, Condition<JanusGraphElement> condition, OrderList orders,
-                             BackendQueryHolder<JointIndexQuery> indexQuery, int limit) {
-        super(limit);
+                             BackendQueryHolder<JointIndexQuery> indexQuery, int limit, int offset) {
+        super(limit, offset);
         Preconditions.checkNotNull(condition);
         Preconditions.checkArgument(orders != null && orders.isImmutable());
         Preconditions.checkNotNull(resultType);
@@ -78,7 +78,7 @@ public class GraphCentricQuery extends BaseQuery implements ElementQuery<JanusGr
         final Condition<JanusGraphElement> cond = new FixedCondition<>(false);
         return new GraphCentricQuery(resultType, cond, OrderList.NO_ORDER,
                 new BackendQueryHolder<>(new JointIndexQuery(),
-                        true, false), 0);
+                        true, false), 0, 0);
     }
 
     public Condition<JanusGraphElement> getCondition() {
@@ -97,7 +97,7 @@ public class GraphCentricQuery extends BaseQuery implements ElementQuery<JanusGr
     public String toString() {
         final StringBuilder b = new StringBuilder();
         b.append("[").append(condition.toString()).append("]");
-        if (!orders.isEmpty()) b.append(getLimit());
+        if (!orders.isEmpty()) b.append(getOrder());
         if (hasLimit()) b.append("(").append(getLimit()).append(")");
         b.append(":").append(resultType.toString());
         return b.toString();

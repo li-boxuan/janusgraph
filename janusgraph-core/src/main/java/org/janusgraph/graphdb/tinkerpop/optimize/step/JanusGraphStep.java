@@ -102,12 +102,21 @@ public class JanusGraphStep<S, E extends Element> extends GraphStep<S, E> implem
 
             final GraphCentricQueryBuilder builder = (GraphCentricQueryBuilder) tx.query();
             final List<Iterator<E>> responses = new ArrayList<>();
+            // TODO: if there is no order requirement (?) and there is only one query, we could pass along the lowLimit,
+            // rather than fetch all results and simply skip first m results
             queries.entries().forEach(q ->  executeGraphCentricQuery(builder, responses, q));
 
             if (orders.isEmpty()) {
                 return new MultiDistinctUnorderedIterator<E>(lowLimit, highLimit, responses);
             } else {
-                return new MultiDistinctOrderedIterator<E>(lowLimit, highLimit, responses, orders);
+                int offset = lowLimit;
+                if (queries.size() == 1) {
+                    GraphCentricQuery graphCentricQuery = (GraphCentricQuery) queries.get(0).toArray()[0];
+                    // TODO: we should use a better way to indicate whether the query supports offset or not
+                    // there is only one backend query which uses offset, no need to skip here
+                    if (graphCentricQuery.getOffset() > 0) offset = 0;
+                }
+                return new MultiDistinctOrderedIterator<E>(offset, highLimit, responses, orders);
             }
         });
     }
@@ -152,6 +161,9 @@ public class JanusGraphStep<S, E extends Element> extends GraphStep<S, E> implem
         final List<OrderEntry> realOrders = orders.isEmpty() ? containers.getValue().getOrders() : orders;
         for (final OrderEntry order : realOrders) query.orderBy(order.key, order.order);
         if (highLimit != BaseQuery.NO_LIMIT || containers.getValue().getHighLimit() != BaseQuery.NO_LIMIT) query.limit(Math.min(containers.getValue().getHighLimit(), highLimit));
+        // TODO: how to deal with containers.getValue().getLowLimit()
+        // TODO: limit should be highLimit + offset
+        query.offset(lowLimit);
         return buildGraphCentricQuery(query, queryProfiler);
     }
 

@@ -60,12 +60,21 @@ public interface JanusGraphQuery<Q extends JanusGraphQuery<Q>> {
     <T extends Comparable<?>> Q interval(String key, T startValue, T endValue);
 
     /**
-     * Limits the size of the returned result set
+     * Specifies the offset of the query. For backends that support offset, query results will be retrieved starting
+     * at the given offset. For backends that don't support offset, this will always be treated as 0.
      *
-     * @param max The maximum number of results to return
-     * @return This query
+     * @param offset
+     * @return
      */
-    Q limit(final int max);
+    Q offset(final int offset);
+
+    /**
+     * Specifies the maximum number of elements to return
+     *
+     * @param limit
+     * @return
+     */
+    Q limit(final int limit);
 
     /**
      * Orders the element results of this query according

@@ -121,6 +121,22 @@ public class JointIndexQuery extends BaseQuery implements BackendQuery<JointInde
         return jointIndexQuery;
     }
 
+    @Override
+    public JointIndexQuery updateOffsetAndLimit(int newOffset, int newLimit) {
+        List<Subquery> subqueries;
+        if(queries.size() == 1){
+            subqueries = new ArrayList<>(1);
+            subqueries.add(queries.get(0).updateOffsetAndLimit(newOffset, newLimit));
+        } else {
+            subqueries = new ArrayList<>(queries);
+        }
+        JointIndexQuery jointIndexQuery = new JointIndexQuery(subqueries);
+        jointIndexQuery.observeWith(this.profiler, false);
+        jointIndexQuery.setOffset(newOffset);
+        jointIndexQuery.setLimit(newLimit);
+        return jointIndexQuery;
+    }
+
     public static class Subquery implements BackendQuery<Subquery>, ProfileObservable {
 
         private final IndexType index;
@@ -174,12 +190,17 @@ public class JointIndexQuery extends BaseQuery implements BackendQuery<JointInde
 
         @Override
         public String toString() {
-            return index.toString()+":"+query.toString();
+            return index+":"+query;
         }
 
         @Override
         public Subquery updateLimit(int newLimit) {
             return new Subquery(index,query.updateLimit(newLimit));
+        }
+
+        @Override
+        public Subquery updateOffsetAndLimit(int newOffset, int newLimit) {
+            return new Subquery(index,query.updateOffsetAndLimit(newOffset, newLimit));
         }
 
         @Override
@@ -190,6 +211,11 @@ public class JointIndexQuery extends BaseQuery implements BackendQuery<JointInde
         @Override
         public int getLimit() {
             return query.getLimit();
+        }
+
+        @Override
+        public int getOffset() {
+            return query.getOffset();
         }
     }
 

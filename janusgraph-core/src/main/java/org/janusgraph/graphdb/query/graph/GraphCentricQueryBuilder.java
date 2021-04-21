@@ -73,6 +73,10 @@ public class GraphCentricQueryBuilder implements JanusGraphQuery<GraphCentricQue
      */
     private OrderList orders = new OrderList();
     /**
+     * The offset (start position) of this query. 0 by default.
+     */
+    private int offset = 0;
+    /**
      * The limit of this query. No limit by default.
      */
     private int limit = Query.NO_LIMIT;
@@ -169,9 +173,17 @@ public class GraphCentricQueryBuilder implements JanusGraphQuery<GraphCentricQue
         return has(s, Cmp.LESS_THAN, t2);
     }
 
+    // TODO: we should call it sth like offsetHint
+    @Override
+    public GraphCentricQueryBuilder offset(final int offset) {
+        Preconditions.checkArgument(offset >= 0, "Non-negative offset expected: %d", offset);
+        this.offset = offset;
+        return this;
+    }
+
     @Override
     public GraphCentricQueryBuilder limit(final int limit) {
-        Preconditions.checkArgument(limit >= 0, "Non-negative limit expected: %s", limit);
+        Preconditions.checkArgument(limit >= 0, "Non-negative limit expected: %d", limit);
         this.limit = limit;
         return this;
     }
@@ -279,6 +291,12 @@ public class GraphCentricQueryBuilder implements JanusGraphQuery<GraphCentricQue
         final Set<Condition> coveredClauses = new HashSet<>();
         final IndexSelectionStrategy.SelectedIndexQuery selectedIndex = indexSelector.selectIndices(indexCandidates, conditions, coveredClauses, orders, serializer);
 
+        // TODO: what is the relationship between selectedIndex.isSorted() vs !orders.isEmpty() ?
+        // currently, only mixed index supports offset query
+        if (selectedIndex.getQuery().size() != 1 || !selectedIndex.isSorted() || !selectedIndex.getQuery().getQuery(0).getIndex().isMixedIndex()) {
+            offset = 0;
+        }
+
         BackendQueryHolder<JointIndexQuery> query;
         if (!coveredClauses.isEmpty()) {
             int indexLimit;
@@ -289,11 +307,11 @@ public class GraphCentricQueryBuilder implements JanusGraphQuery<GraphCentricQue
             }
             indexLimit = Math.min(hardMaxLimit,
                 QueryUtil.adjustLimitForTxModifications(tx, conditions.numChildren() - coveredClauses.size(), indexLimit));
-            query = new BackendQueryHolder<>(selectedIndex.getQuery().updateLimit(indexLimit),
+            query = new BackendQueryHolder<>(selectedIndex.getQuery().updateOffsetAndLimit(offset, indexLimit),
                     coveredClauses.size() == conditions.numChildren(), selectedIndex.isSorted());
         } else {
             query = new BackendQueryHolder<>(new JointIndexQuery(), false, selectedIndex.isSorted());
         }
-        return new GraphCentricQuery(resultType, conditions, orders, query, limit);
+        return new GraphCentricQuery(resultType, conditions, orders, query, limit, offset);
     }
 }

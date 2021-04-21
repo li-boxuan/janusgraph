@@ -59,6 +59,7 @@ public class SliceQuery extends BaseQuery implements BackendQuery<SliceQuery> {
     public SliceQuery(final SliceQuery query) {
         this(query.getSliceStart(), query.getSliceEnd());
         setLimit(query.getLimit());
+        setOffset(query.getOffset());
     }
 
     /**
@@ -139,8 +140,20 @@ public class SliceQuery extends BaseQuery implements BackendQuery<SliceQuery> {
     }
 
     @Override
+    public SliceQuery setOffset(int offset) {
+        super.setOffset(offset);
+        return this;
+    }
+
+
+    @Override
     public SliceQuery updateLimit(int newLimit) {
         return new SliceQuery(sliceStart, sliceEnd).setLimit(newLimit);
+    }
+
+    @Override
+    public SliceQuery updateOffsetAndLimit(int newOffset, int newLimit) {
+        return new SliceQuery(sliceStart, sliceEnd).setOffset(newOffset).setLimit(newLimit);
     }
 
     @Override

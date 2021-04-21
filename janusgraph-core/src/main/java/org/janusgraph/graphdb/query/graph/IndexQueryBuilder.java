@@ -88,10 +88,6 @@ public class IndexQueryBuilder extends BaseQuery implements JanusGraphIndexQuery
      * Name to use for unknown keys, i.e. key references that could not be resolved to an actual type in the database.
      */
     private final String unknownKeyName;
-    /**
-     * In addition to limit, this type of query supports offsets.
-     */
-    private int offset;
 
     public IndexQueryBuilder(StandardJanusGraphTx tx, IndexSerializer serializer) {
         Preconditions.checkNotNull(tx);
@@ -102,7 +98,6 @@ public class IndexQueryBuilder extends BaseQuery implements JanusGraphIndexQuery
         parameters = new ArrayList<>();
         orders = new ArrayList<>();
         unknownKeyName = tx.getGraph().getConfiguration().getUnknownIndexKeyName();
-        this.offset=0;
     }
 
     //################################################
@@ -126,10 +121,6 @@ public class IndexQueryBuilder extends BaseQuery implements JanusGraphIndexQuery
             return Collections.emptyList();
         }
         return Collections.unmodifiableList(orders);
-    }
-
-    public int getOffset() {
-        return offset;
     }
 
     public String getPrefix() {
@@ -167,7 +158,7 @@ public class IndexQueryBuilder extends BaseQuery implements JanusGraphIndexQuery
     @Override
     public IndexQueryBuilder offset(int offset) {
         Preconditions.checkArgument(offset>=0,"Invalid offset provided: %s",offset);
-        this.offset=offset;
+        setOffset(offset);
         return this;
     }
 

@@ -45,6 +45,14 @@ public class MultiKeySliceQuery extends BaseQuery implements BackendQuery<MultiK
         return newQuery;
     }
 
+    @Override
+    public MultiKeySliceQuery updateOffsetAndLimit(int newOffset, int newLimit) {
+        MultiKeySliceQuery newQuery = new MultiKeySliceQuery(queries);
+        newQuery.setOffset(newOffset);
+        newQuery.setLimit(newLimit);
+        return newQuery;
+    }
+
     public List<EntryList> execute(final BackendTransaction tx) {
         int total = 0;
         final List<EntryList> result = new ArrayList<>(Math.min(getLimit(), queries.size()));

@@ -48,6 +48,16 @@ public class QueryUtil {
         return limit;
     }
 
+    public static int getFrom(int offset, int limit) {
+        return offset;
+    }
+
+    public static int getTo(int offset, int limit) {
+        int to = offset + limit;
+        if (to > 0) return to;
+        return Integer.MAX_VALUE;
+    }
+
     public static int convertLimit(long limit) {
         assert limit>=0 || limit==-1;
         if (limit>=Integer.MAX_VALUE || limit==-1) return Integer.MAX_VALUE;

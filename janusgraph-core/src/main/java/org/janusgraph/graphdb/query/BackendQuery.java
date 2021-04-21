@@ -32,4 +32,13 @@ public interface BackendQuery<Q extends BackendQuery> extends Query {
      */
     Q updateLimit(int newLimit);
 
+    /**
+     * Creates a new query identical to the current one but with the specified offset and limit.
+     *
+     * @param newOffset
+     * @param newLimit
+     * @return
+     */
+    Q updateOffsetAndLimit(int newOffset, int newLimit);
+
 }

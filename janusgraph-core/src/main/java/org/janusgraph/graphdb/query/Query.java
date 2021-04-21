@@ -36,6 +36,11 @@ public interface Query {
      */
     int getLimit();
 
-
+    /**
+     * Retrieve the position from which (inclusive) results should be returned by this query. If no from position is given,
+     * this returns 0.
+     * @return from position, a non-negative position
+     */
+    int getOffset();
 
 }

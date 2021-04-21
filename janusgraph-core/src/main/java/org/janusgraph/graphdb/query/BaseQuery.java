@@ -23,13 +23,21 @@ public class BaseQuery implements Query {
 
     private int limit;
 
+    private int offset;
+
     public BaseQuery() {
         this(NO_LIMIT);
     }
 
     public BaseQuery(final int limit) {
+        this(limit, 0);
+    }
+
+    public BaseQuery(final int limit, final int offset) {
         assert limit >= 0;
+        assert offset >= 0;
         this.limit = limit;
+        this.offset = offset;
     }
 
     /**
@@ -43,6 +51,12 @@ public class BaseQuery implements Query {
         return this;
     }
 
+    public BaseQuery setOffset(final int offset) {
+        assert offset >= 0;
+        this.offset = offset;
+        return this;
+    }
+
     @Override
     public int getLimit() {
         return limit;
@@ -51,6 +65,11 @@ public class BaseQuery implements Query {
     @Override
     public boolean hasLimit() {
         return limit != Query.NO_LIMIT;
+    }
+
+    @Override
+    public int getOffset() {
+        return offset;
     }
 
 }

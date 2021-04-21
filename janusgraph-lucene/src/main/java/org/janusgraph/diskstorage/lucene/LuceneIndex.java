@@ -533,6 +533,7 @@ public class LuceneIndex implements IndexProvider {
 
     @Override
     public Stream<String> query(IndexQuery query, KeyInformation.IndexRetriever information, BaseTransaction tx) throws BackendException {
+        // TODO: how can we make use of offset here?
         //Construct query
         final String store = query.getStore();
         final LuceneCustomAnalyzer delegatingAnalyzer = delegatingAnalyzerFor(store, information);

@@ -46,8 +46,8 @@ public class IndexQuery extends BaseQuery implements BackendQuery<IndexQuery> {
 
     private final int hashcode;
 
-    public IndexQuery(String store, Condition condition, ImmutableList<OrderEntry> orders, int limit) {
-        super(limit);
+    public IndexQuery(String store, Condition condition, ImmutableList<OrderEntry> orders, int limit, int offset) {
+        super(limit, offset);
         Preconditions.checkNotNull(store);
         Preconditions.checkNotNull(condition);
         Preconditions.checkArgument(orders != null);
@@ -59,15 +59,19 @@ public class IndexQuery extends BaseQuery implements BackendQuery<IndexQuery> {
     }
 
     public IndexQuery(String store, Condition condition, ImmutableList<OrderEntry> orders) {
-        this(store, condition, orders, Query.NO_LIMIT);
+        this(store, condition, orders, Query.NO_LIMIT, 0);
     }
 
     public IndexQuery(String store, Condition condition) {
-        this(store, condition, NO_ORDER, Query.NO_LIMIT);
+        this(store, condition, NO_ORDER, Query.NO_LIMIT, 0);
     }
 
     public IndexQuery(String store, Condition condition, int limit) {
-        this(store, condition, NO_ORDER, limit);
+        this(store, condition, NO_ORDER, limit, 0);
+    }
+
+    public IndexQuery(String store, Condition condition, int limit, int offset) {
+        this(store, condition, NO_ORDER, limit, offset);
     }
 
     public Condition<JanusGraphElement> getCondition() {
@@ -89,7 +93,12 @@ public class IndexQuery extends BaseQuery implements BackendQuery<IndexQuery> {
 
     @Override
     public IndexQuery updateLimit(int newLimit) {
-        return new IndexQuery(store, condition, orders, newLimit);
+        return new IndexQuery(store, condition, orders, newLimit, getOffset());
+    }
+
+    @Override
+    public IndexQuery updateOffsetAndLimit(int newOffset, int newLimit) {
+        return new IndexQuery(store, condition, orders, newLimit, newOffset);
     }
 
     @Override

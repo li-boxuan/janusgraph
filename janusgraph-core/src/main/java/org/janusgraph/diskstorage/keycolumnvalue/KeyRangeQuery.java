@@ -68,8 +68,20 @@ public class KeyRangeQuery extends SliceQuery {
     }
 
     @Override
+    public KeyRangeQuery setOffset(int offset) {
+        super.setOffset(offset);
+        return this;
+    }
+
+
+    @Override
     public KeyRangeQuery updateLimit(int newLimit) {
         return new KeyRangeQuery(keyStart,keyEnd,this).setLimit(newLimit);
+    }
+
+    @Override
+    public KeyRangeQuery updateOffsetAndLimit(int newOffset, int newLimit) {
+        return new KeyRangeQuery(keyStart,keyEnd,this).setOffset(newOffset).setLimit(newLimit);
     }
 
 

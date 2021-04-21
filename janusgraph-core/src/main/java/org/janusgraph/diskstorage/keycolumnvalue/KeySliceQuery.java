@@ -54,10 +54,20 @@ public class KeySliceQuery extends SliceQuery {
     }
 
     @Override
+    public KeySliceQuery setOffset(int offset) {
+        super.setOffset(offset);
+        return this;
+    }
+
+    @Override
     public KeySliceQuery updateLimit(int newLimit) {
         return new KeySliceQuery(key,this).setLimit(newLimit);
     }
 
+    @Override
+    public KeySliceQuery updateOffsetAndLimit(int newOffset, int newLimit) {
+        return new KeySliceQuery(key,this).setOffset(newOffset).setLimit(newLimit);
+    }
 
     @Override
     public int hashCode() {

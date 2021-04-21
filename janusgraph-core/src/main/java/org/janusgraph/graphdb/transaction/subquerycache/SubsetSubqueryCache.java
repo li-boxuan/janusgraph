@@ -14,6 +14,7 @@
 
 package org.janusgraph.graphdb.transaction.subquerycache;
 
+import org.janusgraph.graphdb.query.QueryUtil;
 import org.janusgraph.graphdb.query.graph.JointIndexQuery;
 
 import java.util.List;
@@ -48,20 +49,19 @@ public abstract class SubsetSubqueryCache implements SubqueryCache {
 
     @Override
     public List<Object> getIfPresent(JointIndexQuery.Subquery key) {
+        int offset = key.getOffset();
         int limit = key.getLimit();
-        JointIndexQuery.Subquery noLimitKey = key.updateLimit(0);
-        SubqueryResult result = get(noLimitKey);
-        if (result != null && (result.getQueryLimit() >= limit || result.getQueryLimit() > result.size())) {
-            return result.getValues().subList(0, Math.min(limit, result.size()));
-        }
-        return null;
+        JointIndexQuery.Subquery noRangeKey = key.updateOffsetAndLimit(0, 0);
+        SubqueryResult result = get(noRangeKey);
+        return result != null ? result.getSubResult(QueryUtil.getFrom(offset, limit), QueryUtil.getTo(offset, limit)) : null;
     }
 
     @Override
     public void put(JointIndexQuery.Subquery key, List<Object> values) {
-        int limit = key.getLimit();
-        JointIndexQuery.Subquery noLimitKey = key.updateLimit(0);
-        put(noLimitKey, new SubqueryResult(values, limit));
+        final int limit = key.getLimit();
+        final int offset = key.getOffset();
+        JointIndexQuery.Subquery noRangeKey = key.updateOffsetAndLimit(0, 0);
+        put(noRangeKey, new SubqueryResult(values, QueryUtil.getFrom(offset, limit), QueryUtil.getTo(offset, limit)));
     }
 
     @Override
@@ -76,19 +76,24 @@ public abstract class SubsetSubqueryCache implements SubqueryCache {
 
     class SubqueryResult {
         private List<Object> values;
-        private int queryLimit;
+        private int to;
+        private int from;
 
-        protected SubqueryResult(List<Object> values, int queryLimit) {
+        protected SubqueryResult(List<Object> values, int from, int to) {
             this.values = values;
-            this.queryLimit = queryLimit;
+            this.from = from;
+            this.to = to;
         }
 
         public List<Object> getValues() {
             return values;
         }
 
-        public int getQueryLimit() {
-            return queryLimit;
+        public List<Object> getSubResult(int from, int to) {
+            if (this.from <= from && (this.to >= to || this.to > values.size())) {
+                return values.subList(from, Math.min(to, values.size()));
+            }
+            return null;
         }
 
         public int size() {
