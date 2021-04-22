@@ -105,7 +105,7 @@ public class HBaseContainer extends GenericContainer<HBaseContainer> {
 
         withCreateContainerCmdModifier(createContainerCmd -> {
             createContainerCmd
-                .withHostName("hbase-docker");
+                .withHostName("localhost");
         });
         waitingFor(Wait.forLogMessage(".*Master has completed initialization.*", 1));
         compat = HBaseCompatLoader.getCompat(null);
@@ -117,7 +117,7 @@ public class HBaseContainer extends GenericContainer<HBaseContainer> {
 
     private ConnectionMask createConnectionMask() throws IOException {
         Configuration entries = HBaseConfiguration.create();
-        entries.set("hbase.zookeeper.quorum", "hbase-docker");
+        entries.set("hbase.zookeeper.quorum", "localhost");
         return compat.createConnection(entries);
     }
 
@@ -166,7 +166,7 @@ public class HBaseContainer extends GenericContainer<HBaseContainer> {
         if (StringUtils.isNotEmpty(tableName)) config.set(HBaseStoreManager.HBASE_TABLE, tableName);
         if (StringUtils.isNotEmpty(graphName)) config.set(GraphDatabaseConfiguration.GRAPH_NAME, graphName);
         config.set(GraphDatabaseConfiguration.TIMESTAMP_PROVIDER, HBaseStoreManager.PREFERRED_TIMESTAMPS);
-        config.set(GraphDatabaseConfiguration.STORAGE_HOSTS, new String[]{"hbase-docker"});
+        config.set(GraphDatabaseConfiguration.STORAGE_HOSTS, new String[]{"localhost"});
         config.set(SimpleBulkPlacementStrategy.CONCURRENT_PARTITIONS, 1);
         config.set(GraphDatabaseConfiguration.DROP_ON_CLEAR, false);
         return config;
