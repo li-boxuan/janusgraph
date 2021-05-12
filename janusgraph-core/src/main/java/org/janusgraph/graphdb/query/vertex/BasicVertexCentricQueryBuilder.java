@@ -18,6 +18,7 @@ import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+import org.apache.tinkerpop.gremlin.structure.VertexProperty;
 import org.janusgraph.core.*;
 import org.janusgraph.core.attribute.Cmp;
 import org.janusgraph.diskstorage.keycolumnvalue.SliceQuery;
@@ -29,9 +30,11 @@ import org.janusgraph.graphdb.query.profile.QueryProfiler;
 import org.janusgraph.graphdb.relations.StandardVertexProperty;
 import org.janusgraph.graphdb.transaction.StandardJanusGraphTx;
 import org.janusgraph.core.schema.SchemaStatus;
+import org.janusgraph.graphdb.types.system.BaseLabel;
 import org.janusgraph.graphdb.types.system.ImplicitKey;
 import org.janusgraph.graphdb.types.system.SystemRelationType;
 import org.apache.tinkerpop.gremlin.structure.Direction;
+import org.janusgraph.graphdb.util.CloseableAbstractIterator;
 import org.janusgraph.util.datastructures.Interval;
 import org.janusgraph.util.datastructures.PointInterval;
 import org.janusgraph.util.datastructures.RangeInterval;
@@ -299,7 +302,8 @@ public abstract class BasicVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q
                 return ResultSetIterator.wrap(merge,baseQuery.getLimit());
             } else vertex = tx.getCanonicalVertex(vertex);
         }
-        return executeIndividualRelations(vertex,baseQuery);
+        Iterator iter = new EdgeProxyProcessor(vertex, baseQuery);
+        return () -> iter;
     }
 
     private Iterable<JanusGraphRelation> executeIndividualRelations(InternalVertex vertex,
@@ -332,7 +336,8 @@ public abstract class BasicVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q
                 return ResultSetIterator.wrap(merge,baseQuery.getLimit());
             } else vertex = tx.getCanonicalVertex(vertex);
         }
-        return executeIndividualVertices(vertex,baseQuery);
+        Iterator iter = new VertexProxyProcessor(vertex, baseQuery);
+        return () -> iter;
     }
 
     private Iterable<JanusGraphVertex> executeIndividualVertices(InternalVertex vertex,
@@ -777,5 +782,79 @@ public abstract class BasicVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q
         return baseLimit;
     }
 
+    // TODO: we should not use CloseableAbstractIterator here since it is unmodifiable
+    public class VertexProxyProcessor extends CloseableAbstractIterator<JanusGraphVertex> {
+
+        private List<Long> proxyIds = new ArrayList<>();
+        private int offset;
+        private Iterator<JanusGraphVertex> iter;
+        private BaseVertexCentricQuery baseQuery;
+
+        public VertexProxyProcessor(InternalVertex vertex, BaseVertexCentricQuery baseQuery) {
+            Condition condition = baseQuery.getCondition();
+            if (condition instanceof And && ((RelationCategory) ((And) condition).get(0)).name().equals(RelationCategory.EDGE.name())
+                || condition instanceof RelationTypeCondition && ((RelationTypeCondition) condition).getRelationType().isEdgeLabel()
+                && !(((RelationTypeCondition) condition).getRelationType() instanceof BaseLabel)) {
+                Iterator<VertexProperty<Long>> proxyIter = vertex.properties("proxies");
+                while (proxyIter.hasNext()) {
+                    proxyIds.add(proxyIter.next().value());
+                }
+            }
+            iter = executeIndividualVertices(vertex, baseQuery).iterator();
+            this.baseQuery = baseQuery;
+        }
+
+        @Override
+        protected JanusGraphVertex computeNext() {
+            if (iter.hasNext()) {
+                JanusGraphVertex v = iter.next();
+                if (tx.getIdInspector().isProxyVertex(v.longId())) {
+                    long canonicalId = (long) v.property("canonicalId").value();
+                    JanusGraphVertex canonicalV = tx.getVertex(canonicalId);
+                    return canonicalV;
+                }
+                return v;
+            } else if (offset < proxyIds.size()) {
+                InternalVertex proxyV = (InternalVertex) tx.getVertex(proxyIds.get(offset++));
+                iter = executeIndividualVertices(proxyV, baseQuery).iterator();
+                return computeNext();
+            }
+            return endOfData();
+        }
+    }
+
+    public class EdgeProxyProcessor extends CloseableAbstractIterator<JanusGraphRelation> {
+
+        private List<Long> proxyIds = new ArrayList<>();
+        private int offset;
+        private Iterator<JanusGraphRelation> iter;
+        private BaseVertexCentricQuery baseQuery;
+
+        public EdgeProxyProcessor(InternalVertex vertex, BaseVertexCentricQuery baseQuery) {
+            Condition condition = baseQuery.getCondition();
+            if (condition instanceof And && ((RelationCategory) ((And) condition).get(0)).name() == RelationCategory.EDGE.name()
+                || condition instanceof RelationTypeCondition && ((RelationTypeCondition) condition).getRelationType().isEdgeLabel()
+                && !(((RelationTypeCondition) condition).getRelationType() instanceof BaseLabel)) {
+                Iterator<VertexProperty<Long>> proxyIter = vertex.properties("proxies");
+                while (proxyIter.hasNext()) {
+                    proxyIds.add(proxyIter.next().value());
+                }
+            }
+            iter = executeIndividualRelations(vertex, baseQuery).iterator();
+            this.baseQuery = baseQuery;
+        }
+
+        @Override
+        protected JanusGraphRelation computeNext() {
+            if (iter.hasNext()) {
+                return iter.next();
+            } else if (offset < proxyIds.size()) {
+                InternalVertex proxyV = (InternalVertex) tx.getVertex(proxyIds.get(offset++));
+                iter = executeIndividualRelations(proxyV, baseQuery).iterator();
+                return computeNext();
+            }
+            return endOfData();
+        }
+    }
 
 }

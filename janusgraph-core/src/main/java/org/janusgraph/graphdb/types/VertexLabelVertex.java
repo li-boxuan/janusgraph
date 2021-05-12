@@ -47,6 +47,11 @@ public class VertexLabelVertex extends JanusGraphSchemaVertex implements Interna
     }
 
     @Override
+    public boolean isProxy() {
+        return getDefinition().getValue(TypeDefinitionCategory.PROXY, Boolean.class);
+    }
+
+    @Override
     public Collection<PropertyKey> mappedProperties() {
         return StreamSupport.stream( getRelated(TypeDefinitionCategory.PROPERTY_KEY_EDGE, Direction.OUT).spliterator(), false)
             .map(entry -> (PropertyKey) entry.getSchemaType())
