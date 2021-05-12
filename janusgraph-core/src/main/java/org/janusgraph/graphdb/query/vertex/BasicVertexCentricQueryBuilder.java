@@ -18,6 +18,10 @@ import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
+import org.apache.commons.lang.StringUtils;
+import org.apache.tinkerpop.gremlin.structure.Property;
+import org.apache.tinkerpop.gremlin.structure.util.CloseableIterator;
 import org.janusgraph.core.*;
 import org.janusgraph.core.attribute.Cmp;
 import org.janusgraph.diskstorage.keycolumnvalue.SliceQuery;
@@ -26,12 +30,14 @@ import org.janusgraph.graphdb.internal.*;
 import org.janusgraph.graphdb.query.*;
 import org.janusgraph.graphdb.query.condition.*;
 import org.janusgraph.graphdb.query.profile.QueryProfiler;
+import org.janusgraph.graphdb.relations.AbstractEdge;
 import org.janusgraph.graphdb.relations.StandardVertexProperty;
 import org.janusgraph.graphdb.transaction.StandardJanusGraphTx;
 import org.janusgraph.core.schema.SchemaStatus;
 import org.janusgraph.graphdb.types.system.ImplicitKey;
 import org.janusgraph.graphdb.types.system.SystemRelationType;
 import org.apache.tinkerpop.gremlin.structure.Direction;
+import org.janusgraph.graphdb.util.CloseableAbstractIterator;
 import org.janusgraph.util.datastructures.Interval;
 import org.janusgraph.util.datastructures.PointInterval;
 import org.janusgraph.util.datastructures.RangeInterval;
@@ -39,7 +45,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
+import java.lang.reflect.Proxy;
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * Builds a {@link BaseVertexQuery}, optimizes the query and compiles the result into
@@ -299,7 +307,13 @@ public abstract class BasicVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q
                 return ResultSetIterator.wrap(merge,baseQuery.getLimit());
             } else vertex = tx.getCanonicalVertex(vertex);
         }
-        return executeIndividualRelations(vertex,baseQuery);
+        Iterator iter = new EdgeProxyProcessor(vertex, baseQuery);
+        return new Iterable<JanusGraphRelation>() {
+            @Override
+            public Iterator<JanusGraphRelation> iterator() {
+                return iter;
+            }
+        };
     }
 
     private Iterable<JanusGraphRelation> executeIndividualRelations(InternalVertex vertex,
@@ -332,7 +346,13 @@ public abstract class BasicVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q
                 return ResultSetIterator.wrap(merge,baseQuery.getLimit());
             } else vertex = tx.getCanonicalVertex(vertex);
         }
-        return executeIndividualVertices(vertex,baseQuery);
+        Iterator iter = new VertexProxyProcessor(vertex, baseQuery);
+        return new Iterable<JanusGraphVertex>() {
+            @Override
+            public Iterator<JanusGraphVertex> iterator() {
+                return iter;
+            }
+        };
     }
 
     private Iterable<JanusGraphVertex> executeIndividualVertices(InternalVertex vertex,
@@ -777,5 +797,82 @@ public abstract class BasicVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q
         return baseLimit;
     }
 
+    public class VertexProxyProcessor extends CloseableAbstractIterator<JanusGraphVertex> {
+        private InternalVertex originalV;
+        private Set<Long> proxyIds;
+        private Iterator<JanusGraphVertex> iter;
+        private BaseVertexCentricQuery baseQuery;
+
+        public VertexProxyProcessor(InternalVertex vertex, BaseVertexCentricQuery baseQuery) {
+            originalV = vertex;
+            proxyIds = new HashSet<>();
+            iter = executeIndividualVertices(vertex, baseQuery).iterator();
+            this.baseQuery = baseQuery;
+        }
+
+        @Override
+        protected JanusGraphVertex computeNext() {
+            if (iter.hasNext()) {
+                InternalVertex elem = (InternalVertex) iter.next();
+                String label = elem.label();
+                if (StringUtils.equals(label, "proxy")) {
+                    if (proxyIds.add(elem.longId())) {
+                        // newly seen proxy vertex
+                        iter = Iterators.concat(iter, executeIndividualVertices(elem, baseQuery).iterator());
+                    }
+                    return computeNext();
+                } else if (originalV.equals(elem)) {
+                    return computeNext();
+                } else {
+                    return elem;
+                }
+            }
+            return endOfData();
+        }
+    }
+
+    public class EdgeProxyProcessor extends CloseableAbstractIterator<JanusGraphRelation> {
+
+        private InternalVertex originalV;
+        private Set<Long> proxyIds;
+        private Iterator<JanusGraphRelation> iter;
+        private BaseVertexCentricQuery baseQuery;
+
+        public EdgeProxyProcessor(InternalVertex vertex, BaseVertexCentricQuery baseQuery) {
+            originalV = vertex;
+            proxyIds = new HashSet<>();
+            iter = executeIndividualRelations(vertex, baseQuery).iterator();
+            this.baseQuery = baseQuery;
+        }
+
+        @Override
+        protected JanusGraphRelation computeNext() {
+            if (iter.hasNext()) {
+                JanusGraphRelation elem = iter.next();
+                Property proxyProp = elem.property("proxyDir");
+                if (proxyProp.isPresent()) {
+                    InternalVertex proxyV;
+                    InternalVertex otherV;
+                    if (StringUtils.equals((String) proxyProp.value(), "out")) {
+                        proxyV = (InternalVertex) ((AbstractEdge) elem).inVertex();
+                        otherV = (InternalVertex) ((AbstractEdge) elem).outVertex();
+                    } else {
+                        proxyV = (InternalVertex) ((AbstractEdge) elem).outVertex();
+                        otherV = (InternalVertex) ((AbstractEdge) elem).inVertex();
+                    }
+                    if (proxyIds.add(proxyV.longId())) {
+                        // newly seen proxy vertex
+                        iter = Iterators.concat(iter, executeIndividualRelations(proxyV, baseQuery).iterator());
+                    } else if (!originalV.equals(otherV)){
+                        return elem;
+                    }
+                    return computeNext();
+                } else {
+                    return elem;
+                }
+            }
+            return endOfData();
+        }
+    }
 
 }
