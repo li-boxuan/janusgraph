@@ -14,7 +14,7 @@
 
 package org.janusgraph.core.inmemory;
 
-import org.apache.commons.configuration.MapConfiguration;
+import org.apache.commons.configuration2.MapConfiguration;
 import org.janusgraph.core.AbstractConfiguredGraphFactoryTest;
 
 import java.util.HashMap;

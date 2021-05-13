@@ -17,6 +17,7 @@ package org.janusgraph.diskstorage;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
+import org.apache.commons.configuration2.convert.DefaultListDelimiterHandler;
 import org.janusgraph.diskstorage.configuration.*;
 import org.janusgraph.diskstorage.configuration.backend.CommonsConfiguration;
 import org.janusgraph.diskstorage.keycolumnvalue.SliceQuery;
@@ -25,7 +26,7 @@ import org.janusgraph.diskstorage.keycolumnvalue.scan.ScanMetrics;
 import org.janusgraph.diskstorage.util.BufferUtil;
 import org.janusgraph.diskstorage.util.Hex;
 import org.janusgraph.diskstorage.util.StaticArrayBuffer;
-import org.apache.commons.configuration.BaseConfiguration;
+import org.apache.commons.configuration2.BaseConfiguration;
 
 import java.io.IOException;
 import java.util.*;
@@ -269,9 +270,11 @@ public class SimpleScanJob implements ScanJob {
     }
 
     public static Configuration getJobConf(List<SliceQuery> queries, Long modulus, Long modVal) {
+        BaseConfiguration baseConfiguration = new BaseConfiguration();
+        baseConfiguration.setListDelimiterHandler(new DefaultListDelimiterHandler(','));
         ModifiableConfiguration conf2 =
                 new ModifiableConfiguration(SimpleScanJob.ROOT_NS,
-                        new CommonsConfiguration(new BaseConfiguration()), BasicConfiguration.Restriction.NONE);
+                        new CommonsConfiguration(baseConfiguration), BasicConfiguration.Restriction.NONE);
         if (null != queries)
             conf2.set(HEX_QUERIES, encodeQueries(queries));
         if (null != modulus)

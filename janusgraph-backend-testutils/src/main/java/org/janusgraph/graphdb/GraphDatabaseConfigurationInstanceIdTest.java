@@ -18,7 +18,7 @@ import java.net.Inet4Address;
 import java.net.UnknownHostException;
 import java.util.Map;
 import java.util.HashMap;
-import org.apache.commons.configuration.MapConfiguration;
+import org.apache.commons.configuration2.MapConfiguration;
 import org.janusgraph.core.JanusGraphException;
 import org.janusgraph.diskstorage.configuration.backend.CommonsConfiguration;
 import org.janusgraph.graphdb.configuration.builder.GraphDatabaseConfigurationBuilder;

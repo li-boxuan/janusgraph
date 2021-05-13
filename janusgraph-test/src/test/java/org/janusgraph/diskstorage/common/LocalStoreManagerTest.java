@@ -14,6 +14,7 @@
 
 package org.janusgraph.diskstorage.common;
 
+import org.apache.commons.configuration2.convert.DefaultListDelimiterHandler;
 import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.BaseTransactionConfig;
 import org.janusgraph.diskstorage.configuration.backend.CommonsConfiguration;
@@ -34,7 +35,7 @@ import static org.janusgraph.diskstorage.configuration.BasicConfiguration.Restri
 import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
-import org.apache.commons.configuration.BaseConfiguration;
+import org.apache.commons.configuration2.BaseConfiguration;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -89,7 +90,9 @@ public class LocalStoreManagerTest {
     }
 
     public LocalStoreManager getStoreManager(Map<ConfigOption, String> map) throws BackendException {
-        final ModifiableConfiguration mc = new ModifiableConfiguration(ROOT_NS, new CommonsConfiguration(new BaseConfiguration()), NONE);
+        BaseConfiguration baseConfiguration = new BaseConfiguration();
+        baseConfiguration.setListDelimiterHandler(new DefaultListDelimiterHandler(','));
+        final ModifiableConfiguration mc = new ModifiableConfiguration(ROOT_NS, new CommonsConfiguration(baseConfiguration), NONE);
         map.forEach(mc::set);
         return new LocalStoreManagerSampleImplementation(mc);
     }

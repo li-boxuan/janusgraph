@@ -32,6 +32,7 @@ import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.VertexProperty;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
 
+import javax.annotation.Nullable;
 import java.util.Iterator;
 
 public abstract class AbstractVertex extends AbstractElement implements InternalVertex, Vertex {
@@ -149,22 +150,27 @@ public abstract class AbstractVertex extends AbstractElement implements Internal
 	 */
 
     public<V> JanusGraphVertexProperty<V> property(final String key, final V value, final Object... keyValues) {
-        PropertyKey propertyKey = tx().getOrCreatePropertyKey(key, value);
-        if (propertyKey == null) {
-            return JanusGraphVertexProperty.empty();
-        }
-        JanusGraphVertexProperty<V> p = tx().addProperty(it(), propertyKey, value);
-        ElementHelper.attachProperties(p,keyValues);
-        return p;
+        return property(null, key, value, keyValues);
     }
 
     @Override
-    public <V> JanusGraphVertexProperty<V> property(final VertexProperty.Cardinality cardinality, final String key, final V value, final Object... keyValues) {
+    public <V> JanusGraphVertexProperty<V> property(@Nullable final VertexProperty.Cardinality cardinality, final String key, final V value, final Object... keyValues) {
         PropertyKey propertyKey = tx().getOrCreatePropertyKey(key, value, cardinality);
         if (propertyKey == null) {
             return JanusGraphVertexProperty.empty();
         }
-        JanusGraphVertexProperty<V> p = tx().addProperty(cardinality, it(), propertyKey, value);
+        VertexProperty.Cardinality vCardinality = cardinality == null ? propertyKey.cardinality().convert() : cardinality;
+        if (value == null) {
+            if (vCardinality.equals(VertexProperty.Cardinality.single)) {
+                // putting null value with SINGLE cardinality is equivalent to removing existing value
+                properties(key).forEachRemaining(p -> p.remove());
+            } else {
+                // simply ignore this mutation
+                assert vCardinality.equals(VertexProperty.Cardinality.list) || vCardinality.equals(VertexProperty.Cardinality.set);
+            }
+            return JanusGraphVertexProperty.empty();
+        }
+        JanusGraphVertexProperty<V> p = tx().addProperty(vCardinality, it(), propertyKey, value);
         ElementHelper.attachProperties(p,keyValues);
         return p;
     }

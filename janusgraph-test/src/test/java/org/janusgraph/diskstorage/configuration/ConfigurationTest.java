@@ -15,10 +15,11 @@
 package org.janusgraph.diskstorage.configuration;
 
 import com.google.common.collect.ImmutableSet;
+import org.apache.commons.configuration2.convert.DefaultListDelimiterHandler;
 import org.janusgraph.core.util.ReflectiveConfigOptionLoader;
 import org.janusgraph.diskstorage.configuration.backend.CommonsConfiguration;
 import org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration;
-import org.apache.commons.configuration.BaseConfiguration;
+import org.apache.commons.configuration2.BaseConfiguration;
 import org.junit.jupiter.api.Test;
 
 import java.util.stream.StreamSupport;
@@ -60,7 +61,9 @@ public class ConfigurationTest {
                 ConfigOption.Type.LOCAL, false);
 
         //Local configuration
-        ModifiableConfiguration config = new ModifiableConfiguration(root,new CommonsConfiguration(new BaseConfiguration()), BasicConfiguration.Restriction.LOCAL);
+        final BaseConfiguration baseConfiguration = new BaseConfiguration();
+        baseConfiguration.setListDelimiterHandler(new DefaultListDelimiterHandler(','));
+        ModifiableConfiguration config = new ModifiableConfiguration(root,new CommonsConfiguration(baseConfiguration), BasicConfiguration.Restriction.LOCAL);
         UserModifiableConfiguration userconfig = new UserModifiableConfiguration(config);
         assertFalse(config.get(partition));
         assertEquals("false", userconfig.get("storage.partition"));
@@ -91,7 +94,9 @@ public class ConfigurationTest {
         userconfig.close();
         ReadConfiguration localConfig = userconfig.getConfiguration();
 
-        config = new ModifiableConfiguration(root,new CommonsConfiguration(new BaseConfiguration()), BasicConfiguration.Restriction.GLOBAL);
+        final BaseConfiguration baseConfiguration2 = new BaseConfiguration();
+        baseConfiguration2.setListDelimiterHandler(new DefaultListDelimiterHandler(','));
+        config = new ModifiableConfiguration(root,new CommonsConfiguration(baseConfiguration2), BasicConfiguration.Restriction.GLOBAL);
         userconfig = new UserModifiableConfiguration(config);
 
         userconfig.set("storage.locktime",1111);

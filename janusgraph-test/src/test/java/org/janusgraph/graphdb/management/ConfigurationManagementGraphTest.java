@@ -29,7 +29,7 @@ import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.ST
 import static org.janusgraph.graphdb.management.ConfigurationManagementGraph.PROPERTY_GRAPH_NAME;
 
 import org.apache.tinkerpop.gremlin.structure.Vertex;
-import org.apache.commons.configuration.MapConfiguration;
+import org.apache.commons.configuration2.MapConfiguration;
 
 import java.util.Map;
 import java.util.HashMap;

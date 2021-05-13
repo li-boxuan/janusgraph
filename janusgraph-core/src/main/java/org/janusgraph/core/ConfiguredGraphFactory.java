@@ -25,8 +25,8 @@ import org.janusgraph.graphdb.management.utils.ConfigurationManagementGraphNotEn
 import static org.janusgraph.graphdb.management.JanusGraphManager.JANUS_GRAPH_MANAGER_EXPECTED_STATE_MSG;
 
 import org.apache.tinkerpop.gremlin.structure.Graph;
-import org.apache.commons.configuration.Configuration;
-import org.apache.commons.configuration.MapConfiguration;
+import org.apache.commons.configuration2.Configuration;
+import org.apache.commons.configuration2.MapConfiguration;
 
 import com.google.common.base.Preconditions;
 

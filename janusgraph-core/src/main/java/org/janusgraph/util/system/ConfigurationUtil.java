@@ -15,7 +15,7 @@
 package org.janusgraph.util.system;
 
 import com.google.common.base.Preconditions;
-import org.apache.commons.configuration.Configuration;
+import org.apache.commons.configuration2.Configuration;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;

@@ -15,7 +15,7 @@
 package org.janusgraph.core.cql;
 
 import com.datastax.driver.core.Session;
-import org.apache.commons.configuration.MapConfiguration;
+import org.apache.commons.configuration2.MapConfiguration;
 import org.janusgraph.JanusGraphCassandraContainer;
 import org.janusgraph.core.AbstractConfiguredGraphFactoryTest;
 import org.janusgraph.core.ConfiguredGraphFactory;

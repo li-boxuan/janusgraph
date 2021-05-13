@@ -14,7 +14,8 @@
 
 package org.janusgraph.hadoop;
 
-import org.apache.commons.configuration.BaseConfiguration;
+import org.apache.commons.configuration2.BaseConfiguration;
+import org.apache.commons.configuration2.convert.DefaultListDelimiterHandler;
 import org.apache.hadoop.conf.Configuration;
 import org.janusgraph.diskstorage.configuration.BasicConfiguration;
 import org.janusgraph.diskstorage.configuration.ConfigElement;
@@ -34,8 +35,10 @@ public class MapReduceIndexJobs {
             LoggerFactory.getLogger(MapReduceIndexJobs.class);
 
     public static ModifiableConfiguration getIndexJobConf(String indexName, String relationType) {
+        BaseConfiguration baseConfiguration = new BaseConfiguration();
+        baseConfiguration.setListDelimiterHandler(new DefaultListDelimiterHandler(','));
         ModifiableConfiguration mc = new ModifiableConfiguration(GraphDatabaseConfiguration.JOB_NS,
-                new CommonsConfiguration(new BaseConfiguration()), BasicConfiguration.Restriction.NONE);
+                new CommonsConfiguration(baseConfiguration), BasicConfiguration.Restriction.NONE);
         mc.set(org.janusgraph.graphdb.olap.job.IndexUpdateJob.INDEX_NAME, indexName);
         mc.set(org.janusgraph.graphdb.olap.job.IndexUpdateJob.INDEX_RELATION_TYPE, relationType);
         mc.set(GraphDatabaseConfiguration.JOB_START_TIME, System.currentTimeMillis());

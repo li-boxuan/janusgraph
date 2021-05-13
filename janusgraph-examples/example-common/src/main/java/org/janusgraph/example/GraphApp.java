@@ -14,13 +14,17 @@
 
 package org.janusgraph.example;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import org.apache.commons.configuration.Configuration;
-import org.apache.commons.configuration.ConfigurationException;
-import org.apache.commons.configuration.PropertiesConfiguration;
+import org.apache.commons.configuration2.Configuration;
+import org.apache.commons.configuration2.builder.FileBasedConfigurationBuilder;
+import org.apache.commons.configuration2.builder.fluent.Parameters;
+import org.apache.commons.configuration2.convert.DefaultListDelimiterHandler;
+import org.apache.commons.configuration2.ex.ConfigurationException;
+import org.apache.commons.configuration2.PropertiesConfiguration;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
 import org.apache.tinkerpop.gremlin.structure.Graph;
@@ -53,9 +57,14 @@ public class GraphApp {
      * Opens the graph instance. If the graph instance does not exist, a new
      * graph instance is initialized.
      */
-    public GraphTraversalSource openGraph() throws ConfigurationException {
+    public GraphTraversalSource openGraph() throws ConfigurationException, IOException {
         LOGGER.info("opening graph");
-        conf = new PropertiesConfiguration(propFileName);
+        FileBasedConfigurationBuilder<PropertiesConfiguration> builder =
+            new FileBasedConfigurationBuilder<PropertiesConfiguration>(PropertiesConfiguration.class)
+                .configure(new Parameters().properties()
+                    .setFileName(propFileName)
+                    .setListDelimiterHandler(new DefaultListDelimiterHandler(',')));
+        conf = builder.getConfiguration();
         graph = GraphFactory.open(conf);
         g = graph.traversal();
         return g;

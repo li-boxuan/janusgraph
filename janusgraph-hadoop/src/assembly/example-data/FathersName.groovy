@@ -12,14 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import org.apache.commons.configuration2.convert.DefaultListDelimiterHandler
 import org.janusgraph.core.JanusGraphFactory
 import com.tinkerpop.blueprints.Graph
-import org.apache.commons.configuration.BaseConfiguration
+import org.apache.commons.configuration2.BaseConfiguration
 
 Graph g
 
 def setup(args) {
-    conf = new BaseConfiguration()
+    BaseConfiguration baseConfiguration = new BaseConfiguration()
+    baseConfiguration.setListDelimiterHandler(new DefaultListDelimiterHandler(','))
+    conf = baseConfiguration
     conf.setProperty('storage.backend', args[0])
     conf.setProperty('storage.hostname', 'localhost')
     g = JanusGraphFactory.open(conf)

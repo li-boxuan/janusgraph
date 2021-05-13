@@ -26,7 +26,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.net.ssl.SSLContext;
 
-import org.apache.commons.configuration.BaseConfiguration;
+import org.apache.commons.configuration2.BaseConfiguration;
+import org.apache.commons.configuration2.convert.DefaultListDelimiterHandler;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
@@ -108,7 +109,9 @@ public class RestClientSetupTest {
     }
 
     private ElasticSearchClient baseConfigTest(Map<String, String> extraConfigValues) throws Exception {
-        final CommonsConfiguration cc = new CommonsConfiguration(new BaseConfiguration());
+        BaseConfiguration baseConfiguration = new BaseConfiguration();
+        baseConfiguration.setListDelimiterHandler(new DefaultListDelimiterHandler(','));
+        final CommonsConfiguration cc = new CommonsConfiguration(baseConfiguration);
         cc.set("index." + INDEX_NAME + ".backend", "elasticsearch");
         cc.set("index." + INDEX_NAME + ".elasticsearch.interface", "REST_CLIENT");
         for(Map.Entry<String, String> me: extraConfigValues.entrySet()) {

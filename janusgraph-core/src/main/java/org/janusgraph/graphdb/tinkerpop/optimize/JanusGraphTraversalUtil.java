@@ -14,8 +14,10 @@
 
 package org.janusgraph.graphdb.tinkerpop.optimize;
 
+import org.apache.tinkerpop.gremlin.process.traversal.step.util.EmptyStep;
 import org.janusgraph.core.JanusGraphTransaction;
 import org.janusgraph.core.JanusGraphVertex;
+import org.janusgraph.graphdb.database.StandardJanusGraph;
 import org.janusgraph.graphdb.olap.computer.FulgoraElementTraversal;
 import org.janusgraph.graphdb.tinkerpop.JanusGraphBlueprintsGraph;
 import org.janusgraph.graphdb.tinkerpop.optimize.step.JanusGraphVertexStep;
@@ -53,6 +55,22 @@ public class JanusGraphTraversalUtil {
      */
     private static final List<Class<? extends TraversalParent>> MULTIQUERY_COMPATIBLE_STEPS =
             Arrays.asList(BranchStep.class, OptionalStep.class, RepeatStep.class, TraversalFilterStep.class);
+
+    public static StandardJanusGraph getJanusGraph(final Traversal.Admin<?, ?> traversal) {
+        Traversal.Admin<?, ?> t = traversal;
+        Graph graph = traversal.getGraph().get();
+        while (!(graph instanceof StandardJanusGraph || graph instanceof StandardJanusGraphTx)) {
+            if (t.getParent() instanceof EmptyStep) {
+                return null;
+            }
+            t = t.getParent().asStep().getTraversal();
+            if (!t.getGraph().isPresent()) {
+                return null;
+            }
+            graph = t.getGraph().get();
+        }
+        return graph instanceof StandardJanusGraphTx ? ((StandardJanusGraphTx) graph).getGraph() : (StandardJanusGraph) graph;
+    }
 
     public static JanusGraphVertex getJanusGraphVertex(Element v) {
         while (v instanceof WrappedVertex) {

@@ -16,6 +16,9 @@ package org.janusgraph.core;
 
 import com.google.common.base.Preconditions;
 
+import org.apache.commons.configuration2.builder.FileBasedConfigurationBuilder;
+import org.apache.commons.configuration2.builder.fluent.Parameters;
+import org.apache.commons.configuration2.convert.DefaultListDelimiterHandler;
 import org.janusgraph.core.log.LogProcessorFramework;
 import org.janusgraph.core.log.TransactionRecovery;
 import org.janusgraph.diskstorage.Backend;
@@ -33,11 +36,11 @@ import static org.janusgraph.graphdb.management.JanusGraphManager.JANUS_GRAPH_MA
 import org.janusgraph.graphdb.database.StandardJanusGraph;
 import org.janusgraph.graphdb.log.StandardLogProcessorFramework;
 import org.janusgraph.graphdb.log.StandardTransactionLogProcessor;
-import org.apache.commons.configuration.BaseConfiguration;
-import org.apache.commons.configuration.Configuration;
-import org.apache.commons.configuration.ConfigurationException;
-import org.apache.commons.configuration.PropertiesConfiguration;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.configuration2.BaseConfiguration;
+import org.apache.commons.configuration2.Configuration;
+import org.apache.commons.configuration2.ex.ConfigurationException;
+import org.apache.commons.configuration2.PropertiesConfiguration;
+import org.apache.commons.lang3.StringUtils;
 import org.janusgraph.util.system.IOUtils;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 
@@ -303,6 +306,7 @@ public class JanusGraphFactory {
             String secondArg = null;
             if (pos+1<shortcutOrFile.length()) secondArg = shortcutOrFile.substring(pos + 1).trim();
             BaseConfiguration config = new BaseConfiguration();
+            config.setListDelimiterHandler(new DefaultListDelimiterHandler(','));
             ModifiableConfiguration writeConfig = new ModifiableConfiguration(ROOT_NS,new CommonsConfiguration(config), BasicConfiguration.Restriction.NONE);
             writeConfig.set(STORAGE_BACKEND,backend);
             ConfigOption option = Backend.getOptionForShorthand(backend);
@@ -323,7 +327,7 @@ public class JanusGraphFactory {
      * Load a properties file containing a JanusGraph graph configuration.
      * <p>
      * <ol>
-     * <li>Load the file contents into a {@link org.apache.commons.configuration.PropertiesConfiguration}</li>
+     * <li>Load the file contents into a {@link org.apache.commons.configuration2.PropertiesConfiguration}</li>
      * <li>For each key that points to a configuration object that is either a directory
      * or local file, check
      * whether the associated value is a non-null, non-absolute path. If so,
@@ -344,7 +348,12 @@ public class JanusGraphFactory {
                 "Need to specify a readable configuration file, but was given: %s", file.toString());
 
         try {
-            PropertiesConfiguration configuration = new PropertiesConfiguration(file);
+            FileBasedConfigurationBuilder<PropertiesConfiguration> builder =
+                new FileBasedConfigurationBuilder<PropertiesConfiguration>(PropertiesConfiguration.class)
+                .configure(new Parameters().properties()
+                    .setFile(file)
+                    .setListDelimiterHandler(new DefaultListDelimiterHandler(',')));
+            PropertiesConfiguration configuration = builder.getConfiguration();
 
             final File tmpParent = file.getParentFile();
             final File configParent;
@@ -374,17 +383,27 @@ public class JanusGraphFactory {
                                   Pattern.quote(INDEX_CONF_FILE.getName()) +  ")"
             + ")");
 
-            final Iterator<String> keysToMangle = StreamSupport.stream(
-                Spliterators.spliteratorUnknownSize(configuration.getKeys(), 0), false)
-                .filter(key -> null != key && p.matcher(key).matches()).iterator();
+//            final List<String> keysToMangle = StreamSupport.stream(
+//                Spliterators.spliteratorUnknownSize(configuration.getKeys(), 0), false)
+//                .filter(key -> null != key && p.matcher(key).matches()).collect(Collectors.toList());
+//
+//            for (String k : keysToMangle) {
+//                Preconditions.checkNotNull(k);
+//                final String s = configuration.getString(k);
+//                Preconditions.checkArgument(StringUtils.isNotBlank(s),"Invalid Configuration: key %s has null empty value",k);
+//                configuration.setProperty(k,getAbsolutePath(configParent,s));
+//            }
 
-            while (keysToMangle.hasNext()) {
-                String k = keysToMangle.next();
-                Preconditions.checkNotNull(k);
-                final String s = configuration.getString(k);
-                Preconditions.checkArgument(StringUtils.isNotBlank(s),"Invalid Configuration: key %s has null empty value",k);
-                configuration.setProperty(k,getAbsolutePath(configParent,s));
-            }
+            StreamSupport.stream(
+                Spliterators.spliteratorUnknownSize(configuration.getKeys(), 0), false)
+                .filter(key -> null != key && p.matcher(key).matches()).forEach(k -> {
+                    Preconditions.checkNotNull(k);
+                    final String s = configuration.getString(k);
+                    Preconditions.checkArgument(StringUtils.isNotBlank(s),"Invalid Configuration: key %s has null empty value",k);
+                    configuration.setProperty(k,getAbsolutePath(configParent,s));
+                }
+            );
+
             return new CommonsConfiguration(configuration);
         } catch (ConfigurationException e) {
             throw new IllegalArgumentException("Could not load configuration at: " + file, e);

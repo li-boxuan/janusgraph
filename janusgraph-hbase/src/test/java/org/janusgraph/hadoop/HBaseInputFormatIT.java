@@ -14,8 +14,11 @@
 
 package org.janusgraph.hadoop;
 
-import org.apache.commons.configuration.ConfigurationException;
-import org.apache.commons.configuration.PropertiesConfiguration;
+import org.apache.commons.configuration2.builder.FileBasedConfigurationBuilder;
+import org.apache.commons.configuration2.builder.fluent.Parameters;
+import org.apache.commons.configuration2.convert.DefaultListDelimiterHandler;
+import org.apache.commons.configuration2.ex.ConfigurationException;
+import org.apache.commons.configuration2.PropertiesConfiguration;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.util.GraphFactory;
 
@@ -36,7 +39,12 @@ public class HBaseInputFormatIT extends AbstractInputFormatIT {
     public static final HBaseContainer hBaseContainer = new HBaseContainer();
 
     protected Graph getGraph() throws IOException, ConfigurationException {
-        final PropertiesConfiguration config = new PropertiesConfiguration("target/test-classes/hbase-read.properties");
+        FileBasedConfigurationBuilder<PropertiesConfiguration> builder =
+            new FileBasedConfigurationBuilder<PropertiesConfiguration>(PropertiesConfiguration.class)
+                .configure(new Parameters().properties()
+                    .setFileName("target/test-classes/hbase-read.properties")
+                    .setListDelimiterHandler(new DefaultListDelimiterHandler(',')));
+        final PropertiesConfiguration config = builder.getConfiguration();
         Path baseOutDir = Paths.get((String) config.getProperty("gremlin.hadoop.outputLocation"));
         baseOutDir.toFile().mkdirs();
         String outDir = Files.createTempDirectory(baseOutDir, null).toAbsolutePath().toString();

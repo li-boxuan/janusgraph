@@ -14,7 +14,8 @@
 
 package org.janusgraph.diskstorage.configuration.converter;
 
-import org.apache.commons.configuration.BaseConfiguration;
+import org.apache.commons.configuration2.BaseConfiguration;
+import org.apache.commons.configuration2.convert.DefaultListDelimiterHandler;
 import org.janusgraph.diskstorage.configuration.ReadConfiguration;
 
 /**
@@ -35,6 +36,7 @@ public class ReadConfigurationConverter {
 
     public BaseConfiguration convert(ReadConfiguration readConfiguration) {
         BaseConfiguration result = new BaseConfiguration();
+        result.setListDelimiterHandler(new DefaultListDelimiterHandler(','));
         for (String k : readConfiguration.getKeys("")) {
             result.setProperty(k, readConfiguration.get(k, Object.class));
         }

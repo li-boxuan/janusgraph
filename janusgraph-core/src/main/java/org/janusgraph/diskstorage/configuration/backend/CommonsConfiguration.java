@@ -15,14 +15,15 @@
 package org.janusgraph.diskstorage.configuration.backend;
 
 import com.google.common.base.Preconditions;
+import org.apache.commons.configuration2.convert.DefaultListDelimiterHandler;
 import org.janusgraph.diskstorage.util.time.Durations;
 
 import org.janusgraph.diskstorage.configuration.ReadConfiguration;
 import org.janusgraph.diskstorage.configuration.WriteConfiguration;
 
-import org.apache.commons.configuration.BaseConfiguration;
-import org.apache.commons.configuration.Configuration;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.configuration2.BaseConfiguration;
+import org.apache.commons.configuration2.Configuration;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,7 +46,9 @@ public class CommonsConfiguration implements WriteConfiguration {
             LoggerFactory.getLogger(CommonsConfiguration.class);
 
     public CommonsConfiguration() {
-        this(new BaseConfiguration());
+        BaseConfiguration baseConfiguration = new BaseConfiguration();
+        baseConfiguration.setListDelimiterHandler(new DefaultListDelimiterHandler(','));
+        this.config = baseConfiguration;
     }
 
     public CommonsConfiguration(Configuration config) {
@@ -175,6 +178,7 @@ public class CommonsConfiguration implements WriteConfiguration {
     @Override
     public WriteConfiguration copy() {
         BaseConfiguration copy = new BaseConfiguration();
+        copy.setListDelimiterHandler(new DefaultListDelimiterHandler(','));
         copy.copy(config);
         return new CommonsConfiguration(copy);
     }
