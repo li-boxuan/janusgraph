@@ -30,6 +30,7 @@ import org.janusgraph.graphdb.query.profile.QueryProfiler;
 import org.janusgraph.graphdb.relations.StandardVertexProperty;
 import org.janusgraph.graphdb.transaction.StandardJanusGraphTx;
 import org.janusgraph.core.schema.SchemaStatus;
+import org.janusgraph.graphdb.types.system.BaseLabel;
 import org.janusgraph.graphdb.types.system.ImplicitKey;
 import org.janusgraph.graphdb.types.system.SystemRelationType;
 import org.apache.tinkerpop.gremlin.structure.Direction;
@@ -789,9 +790,14 @@ public abstract class BasicVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q
         private BaseVertexCentricQuery baseQuery;
 
         public VertexProxyProcessor(InternalVertex vertex, BaseVertexCentricQuery baseQuery) {
-            Iterator<VertexProperty<Long>> proxyIter = vertex.properties("proxies");
-            while (proxyIter.hasNext()) {
-                proxyIds.add(proxyIter.next().value());
+            Condition condition = baseQuery.getCondition();
+            if (condition instanceof And && ((RelationCategory) ((And) condition).get(0)).name().equals(RelationCategory.EDGE.name())
+                || condition instanceof RelationTypeCondition && ((RelationTypeCondition) condition).getRelationType().isEdgeLabel()
+                && !(((RelationTypeCondition) condition).getRelationType() instanceof BaseLabel)) {
+                Iterator<VertexProperty<Long>> proxyIter = vertex.properties("proxies");
+                while (proxyIter.hasNext()) {
+                    proxyIds.add(proxyIter.next().value());
+                }
             }
             iter = executeIndividualVertices(vertex, baseQuery).iterator();
             this.baseQuery = baseQuery;
@@ -826,7 +832,8 @@ public abstract class BasicVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q
         public EdgeProxyProcessor(InternalVertex vertex, BaseVertexCentricQuery baseQuery) {
             Condition condition = baseQuery.getCondition();
             if (condition instanceof And && ((RelationCategory) ((And) condition).get(0)).name() == RelationCategory.EDGE.name()
-                || condition instanceof RelationTypeCondition && ((RelationTypeCondition) condition).getRelationType().isEdgeLabel()) {
+                || condition instanceof RelationTypeCondition && ((RelationTypeCondition) condition).getRelationType().isEdgeLabel()
+                && !(((RelationTypeCondition) condition).getRelationType() instanceof BaseLabel)) {
                 Iterator<VertexProperty<Long>> proxyIter = vertex.properties("proxies");
                 while (proxyIter.hasNext()) {
                     proxyIds.add(proxyIter.next().value());
