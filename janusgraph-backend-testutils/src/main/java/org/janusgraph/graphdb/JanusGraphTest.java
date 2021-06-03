@@ -6912,6 +6912,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
     @Test
     public void testNeighborCountWithProxyNode() {
         mgmt.makePropertyKey("proxies").dataType(Long.class).cardinality(Cardinality.LIST).make();
+        mgmt.makeVertexLabel("proxy").setProxy().make();
         mgmt.commit();
 
         newTx();

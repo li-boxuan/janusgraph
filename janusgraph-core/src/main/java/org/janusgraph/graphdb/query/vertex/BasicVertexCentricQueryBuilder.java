@@ -782,6 +782,7 @@ public abstract class BasicVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q
         return baseLimit;
     }
 
+    // TODO: we should not use CloseableAbstractIterator here since it is unmodifiable
     public class VertexProxyProcessor extends CloseableAbstractIterator<JanusGraphVertex> {
 
         private List<Long> proxyIds = new ArrayList<>();
@@ -807,7 +808,7 @@ public abstract class BasicVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q
         protected JanusGraphVertex computeNext() {
             if (iter.hasNext()) {
                 JanusGraphVertex v = iter.next();
-                if (v.label().equals("proxy")) {
+                if (tx.getIdInspector().isProxyVertex(v.longId())) {
                     long canonicalId = (long) v.property("canonicalId").value();
                     JanusGraphVertex canonicalV = tx.getVertex(canonicalId);
                     return canonicalV;

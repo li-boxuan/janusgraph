@@ -360,6 +360,8 @@ public class VertexIDAssigner implements AutoCloseable {
             return IDManager.VertexIDType.PartitionedVertex;
         } else if (vertexLabel.isStatic()) {
             return IDManager.VertexIDType.UnmodifiableVertex;
+        } else if (vertexLabel.isProxy()) {
+            return IDManager.VertexIDType.ProxyVertex;
         } else {
             return IDManager.VertexIDType.NormalVertex;
         }
@@ -382,6 +384,7 @@ public class VertexIDAssigner implements AutoCloseable {
         public long getBlockSize(int idNamespace) {
             switch (PoolType.getPoolType(idNamespace)) {
                 case NORMAL_VERTEX:
+                case PROXY_VERTEX:
                     return baseBlockSize;
                 case UNMODIFIABLE_VERTEX:
                     return Math.max(10,baseBlockSize/10);
@@ -405,7 +408,7 @@ public class VertexIDAssigner implements AutoCloseable {
 
     private enum PoolType {
 
-        NORMAL_VERTEX, UNMODIFIABLE_VERTEX, PARTITIONED_VERTEX, RELATION, SCHEMA;
+        NORMAL_VERTEX, PROXY_VERTEX, UNMODIFIABLE_VERTEX, PARTITIONED_VERTEX, RELATION, SCHEMA;
 
         public int getIDNamespace() {
             return ordinal();
@@ -416,6 +419,7 @@ public class VertexIDAssigner implements AutoCloseable {
                 case NORMAL_VERTEX:
                 case UNMODIFIABLE_VERTEX:
                 case PARTITIONED_VERTEX:
+                case PROXY_VERTEX:
                     return idManager.getVertexCountBound();
                 case RELATION: return idManager.getRelationCountBound();
                 case SCHEMA: return IDManager.getSchemaCountBound();
@@ -428,6 +432,7 @@ public class VertexIDAssigner implements AutoCloseable {
                 case NORMAL_VERTEX:
                 case UNMODIFIABLE_VERTEX:
                 case RELATION:
+                case PROXY_VERTEX:
                     return true;
                 default: return false;
             }
@@ -437,6 +442,7 @@ public class VertexIDAssigner implements AutoCloseable {
             if (idType==IDManager.VertexIDType.NormalVertex) return NORMAL_VERTEX;
             else if (idType== IDManager.VertexIDType.UnmodifiableVertex) return UNMODIFIABLE_VERTEX;
             else if (idType== IDManager.VertexIDType.PartitionedVertex) return PARTITIONED_VERTEX;
+            else if (idType== IDManager.VertexIDType.ProxyVertex) return PROXY_VERTEX;
             else if (IDManager.VertexIDType.Schema.isSubType(idType)) return SCHEMA;
             else throw new IllegalArgumentException("Invalid id type: " + idType);
         }
