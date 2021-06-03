@@ -75,6 +75,7 @@ import org.janusgraph.graphdb.tinkerpop.optimize.strategy.AdjacentVertexIsOptimi
 import org.janusgraph.graphdb.tinkerpop.optimize.strategy.AdjacentVertexHasIdOptimizerStrategy;
 import org.janusgraph.graphdb.tinkerpop.optimize.strategy.JanusGraphIoRegistrationStrategy;
 import org.janusgraph.graphdb.tinkerpop.optimize.strategy.JanusGraphLocalQueryOptimizerStrategy;
+import org.janusgraph.graphdb.tinkerpop.optimize.strategy.JanusGraphProxyTraversalStrategy;
 import org.janusgraph.graphdb.tinkerpop.optimize.strategy.JanusGraphStepStrategy;
 import org.janusgraph.graphdb.tinkerpop.optimize.strategy.AdjacentVertexHasUniquePropertyOptimizerStrategy;
 import org.janusgraph.graphdb.transaction.StandardJanusGraphTx;
@@ -107,6 +108,7 @@ public class StandardJanusGraph extends JanusGraphBlueprintsGraph {
                                AdjacentVertexHasUniquePropertyOptimizerStrategy.instance(),
                                JanusGraphLocalQueryOptimizerStrategy.instance(),
                                JanusGraphStepStrategy.instance(),
+                               JanusGraphProxyTraversalStrategy.instance(),
                                JanusGraphIoRegistrationStrategy.instance());
 
         //Register with cache

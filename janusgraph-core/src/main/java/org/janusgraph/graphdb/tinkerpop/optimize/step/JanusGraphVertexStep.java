@@ -14,6 +14,9 @@
 
 package org.janusgraph.graphdb.tinkerpop.optimize.step;
 
+import com.google.common.collect.Iterables;
+import org.apache.commons.collections.IteratorUtils;
+import org.apache.tinkerpop.gremlin.structure.Direction;
 import org.janusgraph.core.BaseVertexQuery;
 import org.janusgraph.core.JanusGraphElement;
 import org.janusgraph.core.JanusGraphMultiVertexQuery;
@@ -48,6 +51,9 @@ import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
 import java.util.*;
 
 import com.google.common.base.Preconditions;
+import org.janusgraph.graphdb.transaction.StandardJanusGraphTx;
+import org.janusgraph.graphdb.vertices.AbstractVertex;
+import org.janusgraph.util.datastructures.IterablesUtil;
 
 /**
  * @author Matthias Broecheler (me@matthiasb.com)
@@ -177,17 +183,37 @@ public class JanusGraphVertexStep<E extends Element> extends VertexStep<E> imple
     @Override
     protected Iterator<E> flatMap(final Traverser.Admin<Vertex> traverser) {
 
-        Iterable<? extends JanusGraphElement> result;
+        Iterable<? extends JanusGraphElement> result = IterablesUtil.emptyIterable();
 
         if (useMultiQuery) {
+            // TODO: deal with multi query
             if (multiQueryResults == null || !multiQueryResults.containsKey(traverser.get())) {
                 initializeMultiQuery(Collections.singletonList(traverser));
             }
             result = multiQueryResults.get(traverser.get());
         } else {
-            final JanusGraphVertexQuery query = makeQuery((JanusGraphTraversalUtil.getJanusGraphVertex(traverser)).query());
-            result = (Vertex.class.isAssignableFrom(getReturnClass())) ? query.vertices() : query.edges();
+            List<JanusGraphVertex> proxies = JanusGraphTraversalUtil.getJanusGraphProxyVertices(traverser);
+            JanusGraphVertex canonicalV = JanusGraphTraversalUtil.getJanusGraphVertex(traverser);
+            if (proxies.isEmpty()) {
+                // no proxy, normal node
+                final JanusGraphVertexQuery query = makeQuery(canonicalV.query());
+                result = Vertex.class.isAssignableFrom(getReturnClass()) ? query.vertices() : query.edges();
+            } else {
+                for (JanusGraphVertex proxyV : proxies) {
+                    final JanusGraphVertexQuery query = makeQuery(proxyV.query());
+                    result = Iterables.concat(result, Vertex.class.isAssignableFrom(getReturnClass()) ? query.vertices() : query.edges());
+                }
+                // exclude canonicalV itself from result, and exclude proxy edge from result
+                result = Iterables.filter(result, elem -> !canonicalV.equals(elem) && !elem.label().equals("is-proxy"));
+            }
         }
+
+        result = Iterables.transform(result, v -> {
+            if (v.label().equals("proxy")) {
+                return (JanusGraphVertex) ((JanusGraphVertex) v).vertices(Direction.IN, "is-proxy").next();
+            }
+            return v;
+        });
 
         if (batchPropertyPrefetching) {
             Set<Vertex> vertices = new HashSet<>();

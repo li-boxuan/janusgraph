@@ -37,6 +37,7 @@ import static org.junit.jupiter.params.provider.Arguments.arguments;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
@@ -67,6 +68,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+
 import org.apache.tinkerpop.gremlin.process.traversal.P;
 import org.apache.tinkerpop.gremlin.process.traversal.TextP;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
@@ -80,6 +82,7 @@ import org.apache.tinkerpop.gremlin.structure.Property;
 import org.apache.tinkerpop.gremlin.structure.T;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.VertexProperty;
+import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 import org.janusgraph.TestCategory;
 import org.janusgraph.core.Cardinality;
 import org.janusgraph.core.EdgeLabel;
@@ -6963,5 +6966,84 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
             assertEquals(expectedCount, count, String.format("v = %s, index = %s, direction = %s, prop value = %d",
                 g.V(v).properties("vtName").next().value(), indexName, dirs[i], propValues[i]));
         }
+    }
+
+    @Test
+    public void testNeighborCountWithProxyNode() {
+        mgmt.makePropertyKey("proxies").dataType(Long.class).cardinality(Cardinality.LIST).make();
+        mgmt.commit();
+
+        newTx();
+
+        Vertex v0 = graph.addVertex("vertexId", "v0");
+        Vertex v1 = graph.addVertex("vertexId", "v1");
+        Vertex v2 = graph.addVertex("vertexId", "v2");
+        Vertex v3a = graph.addVertex("vertexId", "v3a");
+        Vertex v3b = graph.addVertex("vertexId", "v3b");
+        Vertex v4 = graph.addVertex("vertexId", "v4");
+
+        v2.addEdge("normal-edge", v3a);
+
+        // assume now v1 becomes a super node and we decide to introduce proxy node(s). The previous edges are retained.
+        // assume the application logic adds an edge from v1 to v2 with labelX, another edge from v1 to v3a with labelY,
+        // and another edge from v1 to v3b with labelY.
+        // what happens under the hood is v1 connects to v2/v3a/v3b via vProxy.
+        Vertex vProxy = graph.addVertex(T.label, "proxy", "vertexId", "vProxy");
+        v0.addEdge("normal-edge", vProxy);
+        vProxy.addEdge("labelX", v4);
+        vProxy.addEdge("labelX", v2, "runDate", "01");
+        vProxy.addEdge("labelY", v3a, "runDate", "02");
+        vProxy.addEdge("labelY", v3b, "runDate", "02");
+        v1.addEdge("is-proxy", vProxy);
+        graph.tx().commit();
+
+        // ensure proxy node is not involved when we retrieve canonical node's properties
+        assertEquals(ImmutableList.of("v1"), graph.traversal().V(v1).values("vertexId").toList());
+
+        // queries without label constraints
+         assertEquals(4, graph.traversal().V(v1).out().count().next());
+
+        // The below test would fail because our proxy traversal only works for gremlin queries
+        // Vertex v = graph.traversal().V(v1).next();
+        // assertEquals(4, IteratorUtils.count(v.edges(Direction.OUT)));
+
+//        assertEquals(4, graph.traversal().V(v1).out().toList().size());
+        assertEquals(ImmutableSet.of("v2", "v3a", "v3b", "v4"), new HashSet<>(graph.traversal().V(v1).out().values("vertexId").toList()));
+        assertEquals(ImmutableSet.of("v0", "v2", "v3a", "v3b", "v4"), new HashSet<>(graph.traversal().V(v1).both().values("vertexId").toList()));
+
+        assertEquals(2, graph.traversal().V(v3a).in().count().next());
+        assertEquals(2, graph.traversal().V(v3a).both().count().next());
+        assertEquals(0, graph.traversal().V(v3a).out().count().next());
+        assertEquals(2, graph.traversal().V(v3a).inE().count().next());
+        assertEquals(2, graph.traversal().V(v3a).bothE().count().next());
+        assertEquals(0, graph.traversal().V(v3a).outE().count().next());
+        assertEquals(ImmutableSet.of("v1", "v2"), new HashSet<>(graph.traversal().V(v3a).in().values("vertexId").toList()));
+        assertEquals(ImmutableSet.of("v1", "v2"), new HashSet<>(graph.traversal().V(v3a).both().values("vertexId").toList()));
+
+        assertEquals(ImmutableSet.of("v1", "v3a"), new HashSet<>(graph.traversal().V(v2).both().values("vertexId").toList()));
+        assertEquals(ImmutableSet.of("v1"), new HashSet<>(graph.traversal().V(v2).in().values("vertexId").toList()));
+        assertEquals(ImmutableSet.of("v3a"), new HashSet<>(graph.traversal().V(v2).out().values("vertexId").toList()));
+
+        // queries with label constraints
+        assertEquals(ImmutableSet.of("v2", "v4"), new HashSet<>(graph.traversal().V(v1).out("labelX").values("vertexId").toList()));
+        assertEquals(ImmutableSet.of("v3a", "v3b"), new HashSet<>(graph.traversal().V(v1).out("labelY").values("vertexId").toList()));
+        assertEquals(ImmutableSet.of("v2", "v4"), new HashSet<>(graph.traversal().V(v1).both("labelX").values("vertexId").toList()));
+        assertEquals(ImmutableSet.of("v3a", "v3b"), new HashSet<>(graph.traversal().V(v1).both("labelY").values("vertexId").toList()));
+        assertEquals(2, graph.traversal().V(v1).out("labelX").count().next());
+        assertEquals(2, graph.traversal().V(v1).out("labelY").count().next());
+
+        assertEquals(ImmutableSet.of("v1"), new HashSet<>(graph.traversal().V(v3a).both("labelY").values("vertexId").toList()));
+        assertEquals(ImmutableSet.of("v2"), new HashSet<>(graph.traversal().V(v3a).both("normal-edge").values("vertexId").toList()));
+        assertEquals(ImmutableSet.of("v1"), new HashSet<>(graph.traversal().V(v3a).in("labelY").values("vertexId").toList()));
+        assertEquals(ImmutableSet.of("v1"), new HashSet<>(graph.traversal().V(v3a).inE("labelY").outV().values("vertexId").toList()));
+        assertEquals(ImmutableSet.of("v2"), new HashSet<>(graph.traversal().V(v3a).in("normal-edge").values("vertexId").toList()));
+        assertEquals(4, graph.traversal().V(v3a).in("labelY").out().count().next());
+        assertEquals(4, graph.traversal().V(v3a).in("labelY").out().toList().size());
+        assertEquals(4, graph.traversal().V(v3a).in("labelY").out().values("vertexId").toList().size());
+        assertEquals(ImmutableSet.of("v2", "v3a", "v3b", "v4"), new HashSet<>(graph.traversal().V(v3a).in("labelY").out().values("vertexId").toList()));
+        assertEquals("02", graph.traversal().V(v3a).inE("labelY").next().property("runDate").value());
+        assertTrue(graph.traversal().V(v1).outE().where(__.otherV().has("vertexId", "v2")).hasNext());
+        assertEquals("02", graph.traversal().V(v3a).inE("labelY").where(__.otherV().has("vertexId", "v1")).next().property("runDate").value());
+        assertEquals("v1", graph.traversal().V(v3a).inE("labelY").otherV().next().property("vertexId").value());
     }
 }
