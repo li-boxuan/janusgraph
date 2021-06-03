@@ -6947,7 +6947,9 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         assertEquals(4, graph.traversal().V(v1).out().count().next());
         assertEquals(4, graph.traversal().V(v1).out().toList().size());
         assertEquals(ImmutableSet.of("v2", "v3a", "v3b", "v4"), new HashSet<>(graph.traversal().V(v1).out().values("vertexId").toList()));
+        assertEquals(ImmutableSet.of("v2", "v3a", "v3b", "v4"), new HashSet<>(graph.traversal().V(v1).outE().inV().values("vertexId").toList()));
         assertEquals(ImmutableSet.of("v0", "v2", "v3a", "v3b", "v4"), new HashSet<>(graph.traversal().V(v1).both().values("vertexId").toList()));
+        assertTrue(graph.traversal().V(v1).outE().where(__.otherV().has("vertexId", "v2")).hasNext());
 
         assertEquals(2, graph.traversal().V(v3a).in().count().next());
         assertEquals(2, graph.traversal().V(v3a).both().count().next());
@@ -6961,6 +6963,8 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         assertEquals(ImmutableSet.of("v1", "v3a"), new HashSet<>(graph.traversal().V(v2).both().values("vertexId").toList()));
         assertEquals(ImmutableSet.of("v1"), new HashSet<>(graph.traversal().V(v2).in().values("vertexId").toList()));
         assertEquals(ImmutableSet.of("v3a"), new HashSet<>(graph.traversal().V(v2).out().values("vertexId").toList()));
+        assertEquals(ImmutableSet.of("v3a"), new HashSet<>(graph.traversal().V(v2).outE().inV().values("vertexId").toList()));
+        assertEquals(ImmutableSet.of("v3a"), new HashSet<>(graph.traversal().V(v2).outE().otherV().values("vertexId").toList()));
 
         // queries with label constraints
         assertEquals(ImmutableSet.of("v2", "v4"), new HashSet<>(graph.traversal().V(v1).out("labelX").values("vertexId").toList()));
