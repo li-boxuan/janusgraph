@@ -7035,5 +7035,9 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         assertEquals(4, graph.traversal().V(v3a).in("labelY").out().toList().size());
         assertEquals(4, graph.traversal().V(v3a).in("labelY").out().values("vertexId").toList().size());
         assertEquals(ImmutableSet.of("v2", "v3a", "v3b", "v4"), new HashSet<>(graph.traversal().V(v3a).in("labelY").out().values("vertexId").toList()));
+        assertEquals("02", graph.traversal().V(v3a).inE("labelY").next().property("runDate").value());
+        assertTrue(graph.traversal().V(v1).outE().where(__.otherV().has("vertexId", "v2")).hasNext());
+        assertEquals("02", graph.traversal().V(v3a).inE("labelY").where(__.otherV().has("vertexId", "v1")).next().property("runDate").value());
+        assertEquals("v1", graph.traversal().V(v3a).inE("labelY").otherV().next().property("vertexId").value());
     }
 }
