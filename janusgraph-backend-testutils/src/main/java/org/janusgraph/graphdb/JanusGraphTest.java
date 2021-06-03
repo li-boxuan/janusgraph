@@ -6932,7 +6932,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         // assume the application logic adds an edge from v1 to v2 with labelX, another edge from v1 to v3a with labelY,
         // and another edge from v1 to v3b with labelY.
         // what happens under the hood is v1 connects to v2/v3a/v3b via vProxy.
-        Vertex vProxy = graph.addVertex(T.label, "proxy", "vertexId", "vProxy", "canonicalId", v1.id());
+        Vertex vProxy = graph.addVertex(T.label, "proxy", "canonicalId", v1.id());
         vProxy.addEdge("labelX", v2, "runDate", "01");
         vProxy.addEdge("labelY", v3a, "runDate", "02");
         vProxy.addEdge("labelY", v3b, "runDate", "02");
@@ -6983,6 +6983,9 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         assertEquals(4, graph.traversal().V(v3a).in("labelY").out().toList().size());
         assertEquals(4, graph.traversal().V(v3a).in("labelY").out().values("vertexId").toList().size());
         assertEquals(ImmutableSet.of("v2", "v3a", "v3b", "v4"), new HashSet<>(graph.traversal().V(v3a).in("labelY").out().values("vertexId").toList()));
+
+        assertEquals("02", graph.traversal().V(v3a).inE("labelY").where(__.otherV().has("vertexId", "v1")).next().property("runDate").value());
+
 
     }
 }
