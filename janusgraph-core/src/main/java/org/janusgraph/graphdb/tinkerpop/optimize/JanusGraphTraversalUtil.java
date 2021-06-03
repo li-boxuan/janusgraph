@@ -15,6 +15,7 @@
 package org.janusgraph.graphdb.tinkerpop.optimize;
 
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.EmptyStep;
+import org.apache.tinkerpop.gremlin.structure.VertexProperty;
 import org.janusgraph.core.JanusGraphTransaction;
 import org.janusgraph.core.JanusGraphVertex;
 import org.janusgraph.graphdb.database.StandardJanusGraph;
@@ -41,6 +42,7 @@ import org.apache.tinkerpop.gremlin.structure.Element;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.util.wrapped.WrappedVertex;
+import org.janusgraph.graphdb.vertices.AbstractVertex;
 
 import java.util.*;
 
@@ -94,6 +96,19 @@ public class JanusGraphTraversalUtil {
 
     public static JanusGraphVertex getJanusGraphVertex(Traverser<? extends Element> traverser) {
         return getJanusGraphVertex(traverser.get());
+    }
+
+    public static List<JanusGraphVertex> getJanusGraphProxyVertices(Traverser<? extends Element> traverser) {
+        List<JanusGraphVertex> proxies = new ArrayList<>();
+        JanusGraphVertex canonicalV = getJanusGraphVertex(traverser.get());
+        proxies.add(canonicalV);
+
+        JanusGraphTransaction tx = ((AbstractVertex) canonicalV).tx();
+        Iterator<VertexProperty<Long>> proxyIter = canonicalV.properties("proxies");
+        while (proxyIter.hasNext()) {
+            proxies.add(tx.getVertex(proxyIter.next().value()));
+        }
+        return proxies;
     }
 
     public static boolean isEdgeReturnStep(JanusGraphVertexStep vertexStep) {

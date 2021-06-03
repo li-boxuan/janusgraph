@@ -14,6 +14,8 @@
 
 package org.janusgraph.graphdb.tinkerpop.optimize.step;
 
+import com.google.common.collect.Iterables;
+import org.apache.commons.collections.IteratorUtils;
 import org.janusgraph.core.BaseVertexQuery;
 import org.janusgraph.core.JanusGraphElement;
 import org.janusgraph.core.JanusGraphMultiVertexQuery;
@@ -48,6 +50,9 @@ import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
 import java.util.*;
 
 import com.google.common.base.Preconditions;
+import org.janusgraph.graphdb.transaction.StandardJanusGraphTx;
+import org.janusgraph.graphdb.vertices.AbstractVertex;
+import org.janusgraph.util.datastructures.IterablesUtil;
 
 /**
  * @author Matthias Broecheler (me@matthiasb.com)
@@ -177,17 +182,29 @@ public class JanusGraphVertexStep<E extends Element> extends VertexStep<E> imple
     @Override
     protected Iterator<E> flatMap(final Traverser.Admin<Vertex> traverser) {
 
-        Iterable<? extends JanusGraphElement> result;
+        Iterable<? extends JanusGraphElement> result = IterablesUtil.emptyIterable();
 
         if (useMultiQuery) {
+            // TODO: deal with multi query
             if (multiQueryResults == null || !multiQueryResults.containsKey(traverser.get())) {
                 initializeMultiQuery(Collections.singletonList(traverser));
             }
             result = multiQueryResults.get(traverser.get());
         } else {
-            final JanusGraphVertexQuery query = makeQuery((JanusGraphTraversalUtil.getJanusGraphVertex(traverser)).query());
-            result = (Vertex.class.isAssignableFrom(getReturnClass())) ? query.vertices() : query.edges();
+            List<JanusGraphVertex> proxies = JanusGraphTraversalUtil.getJanusGraphProxyVertices(traverser);
+            for (JanusGraphVertex proxyV : proxies) {
+                final JanusGraphVertexQuery query = makeQuery(proxyV.query());
+                result = Iterables.concat(result, Vertex.class.isAssignableFrom(getReturnClass()) ? query.vertices() : query.edges());
+            }
         }
+
+        result = Iterables.transform(result, v -> {
+            if (v.label().equals("proxy")) {
+                StandardJanusGraphTx tx = ((AbstractVertex) v).tx();
+                return tx.getVertex((long) v.property("canonicalId").value());
+            }
+            return v;
+        });
 
         if (batchPropertyPrefetching) {
             Set<Vertex> vertices = new HashSet<>();
