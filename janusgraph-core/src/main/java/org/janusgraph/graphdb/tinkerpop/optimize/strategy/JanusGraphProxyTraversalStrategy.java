@@ -9,6 +9,9 @@ import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalHelper;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
+import org.janusgraph.graphdb.database.StandardJanusGraph;
+import org.janusgraph.graphdb.tinkerpop.optimize.JanusGraphTraversalUtil;
+import org.janusgraph.graphdb.vertices.AbstractVertex;
 
 import java.util.Collections;
 import java.util.List;
@@ -60,17 +63,24 @@ public class JanusGraphProxyTraversalStrategy extends AbstractTraversalStrategy<
                     final Vertex outVertex = edge.outVertex();
                     final Vertex inVertex = edge.inVertex();
                     final Vertex v = (Vertex) objects.get(i);
+                    AbstractVertex otherV;
                     if (ElementHelper.areEqual(v, edge.outVertex())) {
-                        return inVertex;
+                        otherV = (AbstractVertex) inVertex;
                     } else if (ElementHelper.areEqual(v, edge.inVertex())) {
-                        return outVertex;
+                        otherV = (AbstractVertex) outVertex;
                     } else {
                         // at least one endpoint of this edge is a proxy node
                         if (outVertex.label().equals("proxy") && outVertex.property("canonicalId").value().equals(v.id())) {
-                            return inVertex;
+                            otherV = (AbstractVertex) inVertex;
                         } else {
-                            return outVertex;
+                            otherV = (AbstractVertex) outVertex;
                         }
+                    }
+                    if (otherV.label().equals("proxy")) {
+                        long canonicalId = (long) otherV.property("canonicalId").value();
+                        return otherV.tx().getVertex(canonicalId);
+                    } else {
+                        return otherV;
                     }
                 }
             }
