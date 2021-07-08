@@ -3031,6 +3031,8 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
 
     @Test
     public void shouldUpdateIndexFieldsAfterIndexModification() throws InterruptedException, ExecutionException {
+        clopen(option(FORCE_INDEX_USAGE), true);
+
         String key1 = "testKey1";
         String key2 = "testKey2";
         String key3 = "testKey3";
@@ -3063,9 +3065,14 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
         // It is just for testing. A better approach is to use Refresh API.
         Thread.sleep(1500L);
 
+        // we open an implicit transaction and do not commit/rollback it by intention, so that we can ensure
+        // adding new property to the index wouldn't cause existing transactions to fail
         List<Vertex> result = graph.traversal().V().hasLabel(vertexL).has(key1, 111L).toList();
-
         assertEquals(1, result.size());
+
+        // open another graph instance
+        JanusGraph graph2 = JanusGraphFactory.open(config);
+        assertEquals(1, graph2.traversal().V().hasLabel(vertexL).has(key1, 111L).toList().size());
 
         mgmt = graph.openManagement();
         PropertyKey testKey3 = mgmt.makePropertyKey(key3).dataType(Long.class).make();
@@ -3082,7 +3089,19 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
         vertex.property(key1, 1L);
         vertex.property(key2, 2L);
         vertex.property(key3, 3L);
-
+        assertTrue(graph.traversal().V().hasLabel(vertexL).has(key3, 3L).hasNext());
         graph.tx().commit();
+        // FIXME: assertTrue(graph.traversal().V().hasLabel(vertexL).has(key3, 3L).hasNext());
+
+        // schema update should be broadcasted to graph2 as well after propogation
+        Thread.sleep(5000);
+        vertex = graph2.addVertex(vertexL);
+        vertex.property(key1, 1L);
+        vertex.property(key2, 2L);
+        vertex.property(key3, 3L);
+        assertTrue(graph2.traversal().V().hasLabel(vertexL).has(key3, 3L).hasNext());
+        graph2.tx().commit();
+        // FIXME: assertTrue(graph2.traversal().V().hasLabel(vertexL).has(key3, 3L).hasNext());
+        graph2.close();
     }
 }
