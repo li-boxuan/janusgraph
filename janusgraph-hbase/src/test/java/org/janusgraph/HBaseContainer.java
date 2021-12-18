@@ -85,7 +85,7 @@ public class HBaseContainer extends GenericContainer<HBaseContainer> {
 
     public HBaseContainer(boolean mountRoot) {
         super(new ImageFromDockerfile()
-            .withFileFromPath(".", Paths.get("docker"))
+            .withFileFromPath(".", Paths.get("../janusgraph-hbase", "docker"))
             .withBuildArg("HBASE_VERSION", getVersion())
             .withBuildArg("HBASE_UID", getUid())
             .withBuildArg("HBASE_GID", getGid()));
