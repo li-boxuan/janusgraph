@@ -209,8 +209,8 @@ public class StandardJanusGraph extends JanusGraphBlueprintsGraph {
         this.serializer = config.getSerializer();
         StoreFeatures storeFeatures = backend.getStoreFeatures();
         this.indexSerializer = new IndexSerializer(configuration.getConfiguration(), this.serializer,
-                this.backend.getIndexInformation(), storeFeatures.isDistributed() && storeFeatures.isKeyOrdered());
-        this.edgeSerializer = new EdgeSerializer(this.serializer);
+                this.backend.getIndexInformation(), storeFeatures.isDistributed() && storeFeatures.isKeyOrdered(), config.allowStringVertexId());
+        this.edgeSerializer = new EdgeSerializer(this.serializer, config.allowStringVertexId());
         this.vertexExistenceQuery = edgeSerializer.getQuery(BaseKey.VertexExists, Direction.OUT, new EdgeSerializer.TypedInterval[0]).setLimit(1);
         this.queryCache = new RelationQueryCache(this.edgeSerializer);
         this.schemaCache = configuration.getTypeCache(typeCacheRetrieval);

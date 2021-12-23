@@ -45,7 +45,7 @@ import org.janusgraph.diskstorage.indexing.StandardKeyInformation;
 import org.janusgraph.diskstorage.keycolumnvalue.KeySliceQuery;
 import org.janusgraph.diskstorage.util.BufferUtil;
 import org.janusgraph.diskstorage.util.HashingUtil;
-import org.janusgraph.graphdb.database.idhandling.VariableLong;
+import org.janusgraph.graphdb.database.idhandling.IDHandler;
 import org.janusgraph.graphdb.database.index.IndexInfoRetriever;
 import org.janusgraph.graphdb.database.index.IndexMutationType;
 import org.janusgraph.graphdb.database.index.IndexRecords;
@@ -120,11 +120,14 @@ public class IndexSerializer {
 
     private final boolean hashKeys;
     private final HashingUtil.HashLength hashLength = HashingUtil.HashLength.SHORT;
+    private final boolean allowStringVertexId;
 
-    public IndexSerializer(Configuration config, Serializer serializer, Map<String, ? extends IndexInformation> indexes, final boolean hashKeys) {
+    public IndexSerializer(Configuration config, Serializer serializer, Map<String, ? extends IndexInformation> indexes,
+                           final boolean hashKeys, boolean allowStringVertexId) {
         this.serializer = serializer;
         this.configuration = config;
         this.mixedIndexes = indexes;
+        this.allowStringVertexId = allowStringVertexId;
         this.hashKeys=hashKeys;
         if (hashKeys) log.info("Hashing index keys");
     }
@@ -216,11 +219,11 @@ public class IndexSerializer {
                     final CompositeIndexType iIndex= (CompositeIndexType) index;
                     final IndexRecordEntry[] record = indexMatch(relation, iIndex);
                     if (record==null) continue;
-                    update = getCompositeIndexUpdate(iIndex, updateType, record, relation, serializer, hashKeys, hashLength);
+                    update = getCompositeIndexUpdate(iIndex, updateType, record, relation, serializer, hashKeys, hashLength, allowStringVertexId);
                 } else {
                     assert relation.valueOrNull(type)!=null;
                     if (((MixedIndexType)index).getField(type).getStatus()== SchemaStatus.DISABLED) continue;
-                    update = getMixedIndexUpdate(relation, type, relation.valueOrNull(type), (MixedIndexType) index, updateType);
+                    update = getMixedIndexUpdate(relation, type, relation.valueOrNull(type), (MixedIndexType) index, updateType, allowStringVertexId);
                 }
                 if (ttl>0) update.setTTL(ttl);
                 updates.add(update);
@@ -244,7 +247,7 @@ public class IndexSerializer {
                     final CompositeIndexType cIndex = (CompositeIndexType)index;
                     final IndexRecords updateRecords = indexMatches(vertex,cIndex,updateType==IndexMutationType.DELETE,p.propertyKey(),new IndexRecordEntry(p));
                     for (final IndexRecordEntry[] record : updateRecords) {
-                        final IndexUpdate update = getCompositeIndexUpdate(cIndex, updateType, record, vertex, serializer, hashKeys, hashLength);
+                        final IndexUpdate update = getCompositeIndexUpdate(cIndex, updateType, record, vertex, serializer, hashKeys, hashLength, allowStringVertexId);
                         final int ttl = getIndexTTL(vertex,getKeysOfRecords(record));
                         if (ttl>0 && updateType== IndexMutationType.ADD) update.setTTL(ttl);
                         updates.add(update);
@@ -255,7 +258,7 @@ public class IndexSerializer {
                         throw new SchemaViolationException(p.propertyKey() + " is not available in mixed index " + index);
                     }
                     if (field.getStatus() == SchemaStatus.DISABLED) continue;
-                    final IndexUpdate update = getMixedIndexUpdate(vertex, p.propertyKey(), p.value(), (MixedIndexType) index, updateType);
+                    final IndexUpdate update = getMixedIndexUpdate(vertex, p.propertyKey(), p.value(), (MixedIndexType) index, updateType, allowStringVertexId);
                     final int ttl = getIndexTTL(vertex,p.propertyKey());
                     if (ttl>0 && updateType== IndexMutationType.ADD) update.setTTL(ttl);
                     updates.add(update);
@@ -278,7 +281,7 @@ public class IndexSerializer {
         }
         if (entries.isEmpty())
             return false;
-        getDocuments(documentsPerStore, index).put(element2String(element), entries);
+        getDocuments(documentsPerStore, index).put(element2String(element, allowStringVertexId), entries);
         return true;
     }
 
@@ -289,7 +292,7 @@ public class IndexSerializer {
     public void removeElement(Object elementId, MixedIndexType index, Map<String,Map<String,List<IndexEntry>>> documentsPerStore) {
         Preconditions.checkArgument((index.getElement()==ElementCategory.VERTEX && elementId instanceof Long) ||
             (index.getElement().isRelation() && elementId instanceof RelationIdentifier),"Invalid element id [%s] provided for index: %s",elementId,index);
-        getDocuments(documentsPerStore,index).put(element2String(elementId),new ArrayList<>());
+        getDocuments(documentsPerStore,index).put(element2String(elementId, allowStringVertexId),new ArrayList<>());
     }
 
     public Set<IndexUpdate<StaticBuffer,Entry>> reindexElement(JanusGraphElement element, CompositeIndexType index) {
@@ -306,7 +309,7 @@ public class IndexSerializer {
             records = (record == null) ? Collections.emptyList() : Collections.singletonList(record);
         }
         for (final IndexRecordEntry[] record : records) {
-            indexEntries.add(getCompositeIndexUpdate(index, IndexMutationType.ADD, record, element, serializer, hashKeys, hashLength));
+            indexEntries.add(getCompositeIndexUpdate(index, IndexMutationType.ADD, record, element, serializer, hashKeys, hashLength, allowStringVertexId));
         }
         return indexEntries;
     }
@@ -328,16 +331,16 @@ public class IndexSerializer {
                     entryValue.movePositionTo(entry.getValuePosition());
                     switch(index.getElement()) {
                         case VERTEX:
-                            results.add(VariableLong.readPositive(entryValue));
+                            results.add(IDHandler.readVertexId(entryValue, true, allowStringVertexId));
                             break;
                         default:
-                            results.add(bytebuffer2RelationId(entryValue));
+                            results.add(bytebuffer2RelationId(entryValue, allowStringVertexId));
                     }
                 }
             }
             return results.stream();
         } else {
-            return tx.indexQuery(index.getBackingIndexName(), query.getMixedQuery()).map(IndexRecordUtil::string2ElementId);
+            return tx.indexQuery(index.getBackingIndexName(), query.getMixedQuery()).map(id -> IndexRecordUtil.string2ElementId(id, allowStringVertexId));
         }
     }
 
@@ -472,7 +475,7 @@ public class IndexSerializer {
         final RawQuery rawQuery = new RawQuery(index.getStoreName(),queryStr,orders,query.getParameters());
         if (query.hasLimit()) rawQuery.setLimit(query.getLimit());
         rawQuery.setOffset(query.getOffset());
-        return backendTx.rawQuery(index.getBackingIndexName(), rawQuery).map(result ->  new RawQuery.Result(string2ElementId(result.getResult()), result.getScore()));
+        return backendTx.rawQuery(index.getBackingIndexName(), rawQuery).map(result ->  new RawQuery.Result(string2ElementId(result.getResult(), allowStringVertexId), result.getScore()));
     }
 
     public Long executeTotals(IndexQueryBuilder query, final ElementCategory resultType,
@@ -492,6 +495,7 @@ public class IndexSerializer {
     public boolean isHashKeys() {
         return hashKeys;
     }
+
 
     public HashingUtil.HashLength getHashLength() {
         return hashLength;

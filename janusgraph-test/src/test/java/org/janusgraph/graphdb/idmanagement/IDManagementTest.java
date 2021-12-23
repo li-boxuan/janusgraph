@@ -73,7 +73,7 @@ public class IDManagementTest {
 
 
     public void testEntityID(int partitionBits, int partition, long minCount, long maxCount) {
-        IDManager eid = new IDManager(partitionBits);
+        IDManager eid = new IDManager(partitionBits, false);
 
         assertTrue(eid.getPartitionBound()>0);
         assertTrue(eid.getPartitionBound()<= 1L +Integer.MAX_VALUE);
@@ -141,7 +141,7 @@ public class IDManagementTest {
     @Test
     public void edgeTypeIDTest() {
         int partitionBits = 16;
-        IDManager eid = new IDManager(partitionBits);
+        IDManager eid = new IDManager(partitionBits, false);
         int trails = 1000000;
         assertEquals(eid.getPartitionBound(), (1L << partitionBits));
 

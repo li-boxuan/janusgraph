@@ -14,6 +14,7 @@
 
 package org.janusgraph.util.encoding;
 
+import org.janusgraph.graphdb.relations.RelationIdentifier;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
@@ -49,6 +50,11 @@ public class LongEncodingTest {
         for (int i = 0; i < codesAmount; i++) {
             assertTrue(codes.add(LongEncoding.encode(i).toLowerCase()));
         }
+    }
+
+    @Test
+    public void testConflictWithStringMarker() {
+        assertEquals(-1, LongEncoding.BASE_SYMBOLS.indexOf(RelationIdentifier.STRING_MARKER));
     }
 
 }

@@ -54,7 +54,7 @@ public class IndexSerializerTest {
         Serializer serializer = mock(Serializer.class);
         Map<String, ? extends IndexInformation> indexes = new HashMap<>();
 
-        IndexSerializer mockSerializer = new IndexSerializer(config, serializer, indexes, true);
+        IndexSerializer mockSerializer = new IndexSerializer(config, serializer, indexes, true, false);
         JanusGraphElement nonIndexableElement = mock(JanusGraphElement.class);
         MixedIndexType mit = mock(MixedIndexType.class);
         doReturn(ElementCategory.VERTEX).when(mit).getElement();
@@ -93,7 +93,7 @@ public class IndexSerializerTest {
         Configuration config = mock(Configuration.class);
         Serializer serializer = mock(Serializer.class);
         Map<String, ? extends IndexInformation> indexes = new HashMap<>();
-        return spy(new IndexSerializer(config, serializer, indexes, true));
+        return spy(new IndexSerializer(config, serializer, indexes, true, false));
     }
 
     private JanusGraphElement mockIndexAppliesTo(MixedIndexType mit, boolean indexable) {
@@ -108,6 +108,7 @@ public class IndexSerializerTest {
         doReturn(false).when(mit).hasSchemaTypeConstraint();
 
         PropertyKey pk = mock(PropertyKey.class);
+        doReturn(1L).when(pk).id();
         doReturn(1L).when(pk).longId();
         doReturn(key).when(pk).name();
         ParameterIndexField pif = mock(ParameterIndexField.class);

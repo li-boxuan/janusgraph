@@ -125,7 +125,6 @@ import java.util.stream.Collectors;
 
 import static org.apache.tinkerpop.gremlin.process.traversal.Order.asc;
 import static org.apache.tinkerpop.gremlin.process.traversal.Order.desc;
-import static org.janusgraph.graphdb.JanusGraphTest.evaluateQuery;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.FORCE_INDEX_USAGE;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_BACKEND;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_NAME_MAPPING;
@@ -3382,14 +3381,15 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
         getV(namePropKeyStr, nameValue, vertexLabelName).drop().iterate();
         newTx();
 
-        JanusGraphElement element = new CacheVertex((StandardJanusGraphTx) tx, ((JanusGraphElement) testVertex).longId(), ElementLifeCycle.New);
+        JanusGraphElement element = new CacheVertex((StandardJanusGraphTx) tx, testVertex.id(), ElementLifeCycle.New);
 
         IndexUpdate<String, IndexEntry> update = IndexRecordUtil.getMixedIndexUpdate(
             element,
             propertyKey,
             nameValue,
             index,
-            IndexMutationType.ADD
+            IndexMutationType.ADD,
+            false
         );
 
         BackendTransaction transaction = ((StandardJanusGraphTx) tx).getTxHandle();
@@ -3454,21 +3454,23 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
         tx.traversal().V().has(namePropKeyStr, "vertex2").has(agePropKeyStr, 123).drop().iterate();
         newTx();
 
-        JanusGraphElement element = new CacheVertex((StandardJanusGraphTx) tx, ((JanusGraphElement) vertex2).longId(), ElementLifeCycle.New);
+        JanusGraphElement element = new CacheVertex((StandardJanusGraphTx) tx, vertex2.id(), ElementLifeCycle.New);
 
         IndexUpdate<String, IndexEntry> nameUpdate = IndexRecordUtil.getMixedIndexUpdate(
             element,
             namePropertyKey,
             "vertex2",
             index,
-            IndexMutationType.ADD
+            IndexMutationType.ADD,
+            false
         );
         IndexUpdate<String, IndexEntry> ageUpdate = IndexRecordUtil.getMixedIndexUpdate(
             element,
             agePropertyKey,
             123,
             index,
-            IndexMutationType.ADD
+            IndexMutationType.ADD,
+            false
         );
 
         BackendTransaction transaction = ((StandardJanusGraphTx) tx).getTxHandle();
@@ -3544,7 +3546,7 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
         BackendTransaction transaction = ((StandardJanusGraphTx) tx).getTxHandle();
         IndexTransaction indexTransaction = transaction.getIndexTransaction(index.getBackingIndexName());
 
-        String elementIndexId = IndexRecordUtil.element2String(edge.id());
+        String elementIndexId = IndexRecordUtil.element2String(edge.id(), false);
         String nameIndexField = IndexRecordUtil.key2Field(index, managementSystem.getPropertyKey(namePropKeyStr));
         String ageIndexField = IndexRecordUtil.key2Field(index, managementSystem.getPropertyKey(agePropKeyStr));
 
@@ -3634,21 +3636,23 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
         tx.traversal().V().has(namePropKeyStr, "vertex2").has(agePropKeyStr, 123).drop().iterate();
         newTx();
 
-        JanusGraphElement element = new CacheVertex((StandardJanusGraphTx) tx, ((JanusGraphElement) vertex2).longId(), ElementLifeCycle.New);
+        JanusGraphElement element = new CacheVertex((StandardJanusGraphTx) tx, vertex2.id(), ElementLifeCycle.New);
 
         IndexUpdate<String, IndexEntry> nameUpdate = IndexRecordUtil.getMixedIndexUpdate(
             element,
             namePropertyKey,
             "vertex2",
             index,
-            IndexMutationType.ADD
+            IndexMutationType.ADD,
+            false
         );
         IndexUpdate<String, IndexEntry> ageUpdate = IndexRecordUtil.getMixedIndexUpdate(
             element,
             agePropertyKey,
             123,
             index,
-            IndexMutationType.ADD
+            IndexMutationType.ADD,
+            false
         );
 
         BackendTransaction transaction = ((StandardJanusGraphTx) tx).getTxHandle();
@@ -3985,7 +3989,7 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
         BackendTransaction transaction = ((StandardJanusGraphTx) tx).getTxHandle();
         IndexTransaction indexTransaction = transaction.getIndexTransaction(index.getBackingIndexName());
 
-        String elementIndexId = IndexRecordUtil.element2String(edgeId);
+        String elementIndexId = IndexRecordUtil.element2String(edgeId, false);
         String nameIndexField = IndexRecordUtil.key2Field(index, managementSystem.getPropertyKey(namePropKeyStr));
 
         assertEquals(0, graph.indexQuery(indexName, nameIndexField+":"+nameValue).edgeTotals());

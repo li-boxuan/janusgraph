@@ -25,7 +25,7 @@ import com.google.common.base.Preconditions;
  */
 public class LongEncoding {
 
-    private static final String BASE_SYMBOLS = "0123456789abcdefghijklmnopqrstuvwxyz";
+    public static final String BASE_SYMBOLS = "0123456789abcdefghijklmnopqrstuvwxyz";
 
     public static long decode(String s) {
         return decode(s,BASE_SYMBOLS);

@@ -347,7 +347,8 @@ public class StaleIndexRecordUtil {
             elementToRemoveFromIndex,
             serializer,
             hashKeys,
-            hashLength
+            hashLength,
+            graph.getConfiguration().allowStringVertexId()
         );
 
         StandardJanusGraphTx tx = (StandardJanusGraphTx) graph.newTransaction();
@@ -374,7 +375,7 @@ public class StaleIndexRecordUtil {
 
         JanusGraphSchemaVertex indexSchemaVertex = managementSystem.getSchemaVertex(index);
         MixedIndexType indexType = (MixedIndexType) indexSchemaVertex.asIndexType();
-        String elementKey = IndexRecordUtil.element2String(elementIdToRemoveFromIndex);
+        String elementKey = IndexRecordUtil.element2String(elementIdToRemoveFromIndex, graph.getConfiguration().allowStringVertexId());
 
         StandardJanusGraphTx tx = (StandardJanusGraphTx) graph.newTransaction();
         BackendTransaction transaction = tx.getTxHandle();
@@ -404,7 +405,7 @@ public class StaleIndexRecordUtil {
 
         JanusGraphSchemaVertex indexSchemaVertex = managementSystem.getSchemaVertex(index);
         MixedIndexType indexType = (MixedIndexType) indexSchemaVertex.asIndexType();
-        String elementKey = IndexRecordUtil.element2String(elementIdToRemoveFromIndex);
+        String elementKey = IndexRecordUtil.element2String(elementIdToRemoveFromIndex, graph.getConfiguration().allowStringVertexId());
 
         StandardJanusGraphTx tx = (StandardJanusGraphTx) graph.newTransaction();
         BackendTransaction transaction = tx.getTxHandle();

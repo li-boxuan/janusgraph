@@ -16,6 +16,7 @@ package org.janusgraph.graphdb.database.util;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import org.apache.commons.lang.StringUtils;
 import org.janusgraph.core.Cardinality;
 import org.janusgraph.core.JanusGraphElement;
 import org.janusgraph.core.JanusGraphRelation;
@@ -32,6 +33,7 @@ import org.janusgraph.diskstorage.util.HashingUtil;
 import org.janusgraph.diskstorage.util.StaticArrayEntry;
 import org.janusgraph.graphdb.database.IndexRecordEntry;
 import org.janusgraph.graphdb.database.StandardJanusGraph;
+import org.janusgraph.graphdb.database.idhandling.IDHandler;
 import org.janusgraph.graphdb.database.idhandling.VariableLong;
 import org.janusgraph.graphdb.database.index.IndexMutationType;
 import org.janusgraph.graphdb.database.index.IndexRecords;
@@ -67,6 +69,10 @@ public class IndexRecordUtil {
     private static final int DEFAULT_OBJECT_BYTELEN = 30;
     private static final byte FIRST_INDEX_COLUMN_BYTE = 0;
 
+    private static final char LONG_ID_PREFIX = 'L';
+    private static final char STRING_ID_PREFIX = 'S';
+    private static final char RELATION_ID_PREFIX = 'R';
+
     public static Object[] getValues(IndexRecordEntry[] record) {
         final Object[] values = new Object[record.length];
         for (int i = 0; i < values.length; i++) {
@@ -82,19 +88,59 @@ public class IndexRecordUtil {
         return (MixedIndexType)index;
     }
 
-    public static String element2String(JanusGraphElement element) {
-        return element2String(element.id());
+    public static String element2String(JanusGraphElement element, boolean allowStringVertexId) {
+        return element2String(element.id(), allowStringVertexId);
     }
 
-    public static String element2String(Object elementId) {
-        Preconditions.checkArgument(elementId instanceof Long || elementId instanceof RelationIdentifier);
-        if (elementId instanceof Long) return longID2Name((Long)elementId);
-        else return ((RelationIdentifier) elementId).toString();
+    /**
+     * Convert an element's (including vertex and relation) id into a String
+     *
+     * If allowStringVertexId is enabled, we add a one character prefix as identifier to differentiate different types
+     * Otherwise, we don't add any special marker
+     * @param elementId
+     * @param allowStringVertexId
+     * @return
+     */
+    public static String element2String(Object elementId, boolean allowStringVertexId) {
+        Preconditions.checkArgument(elementId instanceof Long || elementId instanceof RelationIdentifier || elementId instanceof String);
+        if (allowStringVertexId) {
+            if (elementId instanceof Long) {
+                return LONG_ID_PREFIX + longID2Name((Long)elementId);
+            } else if (elementId instanceof RelationIdentifier) {
+                return RELATION_ID_PREFIX + ((RelationIdentifier) elementId).toString();
+            } else {
+                return STRING_ID_PREFIX + (String) elementId;
+            }
+        } else {
+            if (elementId instanceof Long) {
+                return longID2Name((Long)elementId);
+            } else {
+                return ((RelationIdentifier) elementId).toString();
+            }
+        }
     }
 
-    public static Object string2ElementId(String str) {
-        if (str.contains(RelationIdentifier.TOSTRING_DELIMITER)) return RelationIdentifier.parse(str);
-        else return name2LongID(str);
+    public static Object string2ElementId(String str, boolean allowStringVertexId) {
+        if (StringUtils.isEmpty(str)) {
+            throw new IllegalArgumentException("Empty string cannot be converted to a valid id");
+        }
+        if (allowStringVertexId) {
+            if (str.charAt(0) == LONG_ID_PREFIX) {
+                return name2LongID(str.substring(1));
+            } else if (str.charAt(0) == RELATION_ID_PREFIX) {
+                return RelationIdentifier.parse(str.substring(1));
+            } else if (str.charAt(0) == STRING_ID_PREFIX) {
+                return str.substring(1);
+            } else {
+                throw new IllegalArgumentException("String is not a representation of a valid id: " + str);
+            }
+        } else {
+            if (str.contains(RelationIdentifier.TOSTRING_DELIMITER)) {
+                return RelationIdentifier.parse(str);
+            } else {
+                return name2LongID(str);
+            }
+        }
     }
 
     public static String key2Field(MixedIndexType index, PropertyKey key) {
@@ -119,11 +165,16 @@ public class IndexRecordUtil {
         return LongEncoding.decode(name);
     }
 
-    public static RelationIdentifier bytebuffer2RelationId(ReadBuffer b) {
+    public static RelationIdentifier bytebuffer2RelationId(ReadBuffer b, boolean allowStringVertexId) {
         Object[] relationId = new Object[4];
-        for (int i = 0; i < 3; i++) relationId[i] = VariableLong.readPositive(b);
-        if (b.hasRemaining()) relationId[3] = VariableLong.readPositive(b);
-        else relationId = Arrays.copyOfRange(relationId, 0, 3);
+        relationId[0] = VariableLong.readPositive(b);
+        relationId[1] = IDHandler.readVertexId(b, true, allowStringVertexId);
+        relationId[2] = VariableLong.readPositive(b);
+        if (b.hasRemaining()) {
+            relationId[3] = IDHandler.readVertexId(b, true, allowStringVertexId);
+        } else {
+            relationId = Arrays.copyOfRange(relationId,0,3);
+        }
         return RelationIdentifier.get(relationId);
     }
 
@@ -238,33 +289,36 @@ public class IndexRecordUtil {
         }
     }
 
-    public static Entry getIndexEntry(CompositeIndexType index, IndexRecordEntry[] record, JanusGraphElement element, Serializer serializer) {
+
+    private static Entry getIndexEntry(CompositeIndexType index, IndexRecordEntry[] record,
+                                       JanusGraphElement element, Serializer serializer, boolean allowStringVertexId) {
         final DataOutput out = serializer.getDataOutput(1+8+8*record.length+4*8);
         out.putByte(FIRST_INDEX_COLUMN_BYTE);
-        if (index.getCardinality()!= Cardinality.SINGLE) {
+        if (index.getCardinality()!=Cardinality.SINGLE) {
             if (element instanceof JanusGraphVertex) {
-                VariableLong.writePositive(out, ((Number) element.id()).longValue());
+                IDHandler.writeVertexId(out, element.id(), true, allowStringVertexId);
             } else {
                 assert element instanceof JanusGraphRelation;
+                assert ((JanusGraphRelation) element).longId() == ((RelationIdentifier) element.id()).getRelationId();
                 VariableLong.writePositive(out, ((JanusGraphRelation) element).longId());
             }
             if (index.getCardinality()!=Cardinality.SET) {
                 for (final IndexRecordEntry re : record) {
-                    VariableLong.writePositive(out,re.getRelationId());
+                    VariableLong.writePositive(out, re.getRelationId());
                 }
             }
         }
         final int valuePosition=out.getPosition();
         if (element instanceof JanusGraphVertex) {
-            VariableLong.writePositive(out,((Number) element.id()).longValue());
+            IDHandler.writeVertexId(out, element.id(), true, allowStringVertexId);
         } else {
             assert element instanceof JanusGraphRelation;
             final RelationIdentifier rid = (RelationIdentifier)element.id();
             VariableLong.writePositive(out, rid.getRelationId());
-            VariableLong.writePositive(out, ((Number) rid.getOutVertexId()).longValue());
+            IDHandler.writeVertexId(out, rid.getOutVertexId(), true, allowStringVertexId);
             VariableLong.writePositive(out, rid.getTypeId());
             if (rid.getInVertexId() != null) {
-                VariableLong.writePositive(out, ((Number) rid.getInVertexId()).longValue());
+                IDHandler.writeVertexId(out, rid.getInVertexId(), true, allowStringVertexId);
             }
         }
         return new StaticArrayEntry(out.getStaticBuffer(),valuePosition);
@@ -301,14 +355,15 @@ public class IndexRecordUtil {
     }
 
     public static IndexUpdate<StaticBuffer, Entry> getCompositeIndexUpdate(CompositeIndexType index, IndexMutationType indexMutationType, IndexRecordEntry[] record,
-                                                                           JanusGraphElement element, Serializer serializer, boolean hashKeys, HashingUtil.HashLength hashLength){
+                                                                           JanusGraphElement element, Serializer serializer, boolean hashKeys, HashingUtil.HashLength hashLength,
+                                                                           boolean allowStringVertexId){
         return new IndexUpdate<>(index, indexMutationType,
             getIndexKey(index, record, serializer, hashKeys, hashLength),
-            getIndexEntry(index, record, element, serializer), element);
+            getIndexEntry(index, record, element, serializer, allowStringVertexId), element);
     }
 
     public static IndexUpdate<String, IndexEntry> getMixedIndexUpdate(JanusGraphElement element, PropertyKey key, Object value,
-                                                                      MixedIndexType index, IndexMutationType updateType)  {
-        return new IndexUpdate<>(index, updateType, element2String(element), new IndexEntry(key2Field(index.getField(key)), value), element);
+                                                                      MixedIndexType index, IndexMutationType updateType, boolean allowStringVertexId)  {
+        return new IndexUpdate<>(index, updateType, element2String(element, allowStringVertexId), new IndexEntry(key2Field(index.getField(key)), value), element);
     }
 }
