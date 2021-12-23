@@ -80,21 +80,21 @@ public class VertexProgramScanJob<M> implements VertexScanJob {
     @Override
     public void process(JanusGraphVertex vertex, ScanMetrics metrics) {
         PreloadedVertex v = (PreloadedVertex)vertex;
-        long vertexId = v.longId();
+        Object vertexId = v.id();
         VertexMemoryHandler<M> vh = new VertexMemoryHandler(vertexMemory,v);
         vh.setInExecute(true);
         v.setAccessCheck(PreloadedVertex.OPENSTAR_CHECK);
         if (idManager.isPartitionedVertex(vertexId)) {
-            if (idManager.isCanonicalVertexId(vertexId)) {
+            if (idManager.isCanonicalVertexId((long) vertexId)) {
                 EntryList results = v.getFromCache(SYSTEM_PROPS_QUERY);
                 if (results == null) results = EntryList.EMPTY_LIST;
-                vertexMemory.setLoadedProperties(vertexId,results);
+                vertexMemory.setLoadedProperties((long) vertexId,results);
             }
             for (MessageScope scope : vertexMemory.getPreviousScopes()) {
                 if (scope instanceof MessageScope.Local) {
                     vh.receiveMessages(scope)
                       .iterator()
-                      .forEachRemaining(m -> vertexMemory.aggregateMessage(vertexId, m, scope));
+                      .forEachRemaining(m -> vertexMemory.aggregateMessage((long) vertexId, m, scope));
                 }
             }
         } else {

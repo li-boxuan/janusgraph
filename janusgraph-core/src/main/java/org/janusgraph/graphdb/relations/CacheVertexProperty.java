@@ -88,7 +88,7 @@ public class CacheVertexProperty extends AbstractVertexProperty {
 
     @Override
     public <O> O getValueDirect(PropertyKey key) {
-        return getPropertyMap().get(key.longId());
+        return getPropertyMap().get((long) key.id());
     }
 
     @Override

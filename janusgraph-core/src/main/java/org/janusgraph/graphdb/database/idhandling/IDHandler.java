@@ -21,6 +21,7 @@ import org.janusgraph.diskstorage.WriteBuffer;
 import org.janusgraph.diskstorage.util.BufferUtil;
 import org.janusgraph.diskstorage.util.StaticArrayBuffer;
 import org.janusgraph.diskstorage.util.WriteByteBuffer;
+import org.janusgraph.graphdb.database.serialize.DataOutput;
 import org.janusgraph.graphdb.idmanagement.IDManager;
 import org.janusgraph.graphdb.internal.RelationCategory;
 
@@ -193,6 +194,62 @@ public class IDHandler {
         end++;
         assert end > start;
         return new StaticBuffer[]{getPrefixed(start), getPrefixed(end)};
+    }
+
+    public static void writeVertexId(DataOutput out, Object id, boolean forward, boolean allowStringVertexId) {
+        if (allowStringVertexId && (id instanceof String)) {
+            if (forward) {
+                out.putByte(IDManager.STRING_MARKER);
+                VariableString.write(out, id.toString());
+            } else {
+                VariableString.writeBackward(out, id.toString());
+                out.putByte(IDManager.STRING_MARKER);
+            }
+        } else {
+            if (forward) {
+                if (allowStringVertexId) {
+                    out.putByte(IDManager.LONG_MARKER);
+                }
+                VariableLong.writePositive(out, (long) id);
+            } else {
+                VariableLong.writePositiveBackward(out, (long) id);
+                if (allowStringVertexId) {
+                    out.putByte(IDManager.LONG_MARKER);
+                }
+            }
+        }
+    }
+
+    public static Object readVertexId(ReadBuffer in, boolean forward, boolean allowStringVertexId) {
+        if (allowStringVertexId) {
+            if (forward) {
+                final byte marker = in.getByte();
+                final boolean isLong = marker == IDManager.LONG_MARKER;
+                if (isLong) {
+                    return VariableLong.readPositive(in);
+                } else {
+                    assert marker == IDManager.STRING_MARKER;
+                    return VariableString.read(in);
+                }
+            } else {
+                int position = in.getPosition();
+                final byte marker = in.getByte(--position);
+                in.movePositionTo(position);
+                final boolean isLong = marker == IDManager.LONG_MARKER;
+                if (isLong) {
+                    return VariableLong.readPositiveBackward(in);
+                } else {
+                    assert marker == IDManager.STRING_MARKER;
+                    return VariableString.readBackward(in);
+                }
+            }
+        } else {
+            if (forward) {
+                return VariableLong.readPositive(in);
+            } else {
+                return VariableLong.readPositiveBackward(in);
+            }
+        }
     }
 
 }

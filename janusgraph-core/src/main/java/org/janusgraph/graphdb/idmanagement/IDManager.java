@@ -17,9 +17,11 @@ package org.janusgraph.graphdb.idmanagement;
 
 import com.google.common.base.Preconditions;
 import org.janusgraph.core.InvalidIDException;
+import org.janusgraph.diskstorage.ReadBuffer;
 import org.janusgraph.diskstorage.StaticBuffer;
 import org.janusgraph.diskstorage.util.BufferUtil;
 import org.janusgraph.graphdb.database.idhandling.VariableLong;
+import org.janusgraph.graphdb.database.idhandling.VariableString;
 
 /**
  * Handles the allocation of ids based on the type of element
@@ -349,8 +351,13 @@ public class IDManager {
             return id >>> offset();
         }
 
-        public final boolean is(long id) {
-            return (id & ((1L << offset()) - 1)) == suffix();
+        public final boolean is(Object id) {
+            if (id instanceof Number) {
+                return ((long) id & ((1L << offset()) - 1)) == suffix();
+            } else {
+                // only user-defined vertex can be of other type
+                return suffix() == 0;
+            }
         }
 
         public final boolean isSubType(VertexIDType type) {
@@ -396,11 +403,13 @@ public class IDManager {
      */
     public static final long MAX_PADDING_BITWIDTH = VertexIDType.UserEdgeLabel.offset();
 
+    public static final byte STRING_MARKER = 1;
+    public static final byte LONG_MARKER = 0;
+
     /**
      * Bound on the maximum count for a schema id
      */
     private static final long SCHEMA_COUNT_BOUND = (1L << (TOTAL_BITS - MAX_PADDING_BITWIDTH - TYPE_LEN_RESERVE));
-
 
     private final long partitionBits;
     private final long partitionOffset;
@@ -409,8 +418,10 @@ public class IDManager {
     private final long relationCountBound;
     private final long vertexCountBound;
 
+    private final boolean allowStringVertexId;
 
-    public IDManager(long partitionBits) {
+
+    public IDManager(long partitionBits, boolean allowStringVertexId) {
         Preconditions.checkArgument(partitionBits >= 0);
         Preconditions.checkArgument(partitionBits <= MAX_PARTITION_BITS,
                 "Partition bits can be at most %s bits", MAX_PARTITION_BITS);
@@ -422,12 +433,13 @@ public class IDManager {
         assert VertexIDType.NormalVertex.offset()>0;
         vertexCountBound = (1L << (TOTAL_BITS - partitionBits - USERVERTEX_PADDING_BITWIDTH));
 
-
         partitionOffset = Long.SIZE - partitionBits;
+
+        this.allowStringVertexId = allowStringVertexId;
     }
 
     public IDManager() {
-        this(DEFAULT_PARTITION_BITS);
+        this(DEFAULT_PARTITION_BITS, false);
     }
 
     public long getPartitionBound() {
@@ -453,7 +465,7 @@ public class IDManager {
         return id;
     }
 
-    private static VertexIDType getUserVertexIDType(long vertexId) {
+    private static VertexIDType getUserVertexIDType(Object vertexId) {
         VertexIDType type=null;
         if (VertexIDType.NormalVertex.is(vertexId)) type=VertexIDType.NormalVertex;
         else if (VertexIDType.PartitionedVertex.is(vertexId)) type=VertexIDType.PartitionedVertex;
@@ -464,9 +476,13 @@ public class IDManager {
         return type;
     }
 
-    public final boolean isUserVertexId(long vertexId) {
-        return (VertexIDType.NormalVertex.is(vertexId) || VertexIDType.PartitionedVertex.is(vertexId) || VertexIDType.UnmodifiableVertex.is(vertexId))
-                && ((vertexId>>>(partitionBits+USERVERTEX_PADDING_BITWIDTH))>0);
+    public final boolean isUserVertexId(Object vertexId) {
+        if (vertexId instanceof Number) {
+            return (VertexIDType.NormalVertex.is(vertexId) || VertexIDType.PartitionedVertex.is(vertexId) || VertexIDType.UnmodifiableVertex.is(vertexId))
+                && (((long) vertexId>>>(partitionBits+USERVERTEX_PADDING_BITWIDTH))>0);
+        } else {
+            return true;
+        }
     }
 
     public long getPartitionId(long vertexId) {
@@ -477,24 +493,47 @@ public class IDManager {
         return partition;
     }
 
-    public StaticBuffer getKey(long vertexId) {
+    public StaticBuffer getKey(Object vertexId) {
+        final byte marker = (vertexId instanceof String) ? STRING_MARKER : LONG_MARKER;
         if (VertexIDType.Schema.is(vertexId)) {
             //No partition for schema vertices
-            return BufferUtil.getLongBuffer(vertexId);
+            if (allowStringVertexId) {
+                return BufferUtil.getLongBufferWithMarker((long) vertexId, marker);
+            } else {
+                return BufferUtil.getLongBuffer((long) vertexId);
+            }
         } else {
             assert isUserVertexId(vertexId);
-            VertexIDType type = getUserVertexIDType(vertexId);
-            assert type.offset()==USERVERTEX_PADDING_BITWIDTH;
-            long partition = getPartitionId(vertexId);
-            long count = vertexId>>>(partitionBits+USERVERTEX_PADDING_BITWIDTH);
-            assert count>0;
-            long keyId = (partition<<partitionOffset) | type.addPadding(count);
-            return BufferUtil.getLongBuffer(keyId);
+            if (vertexId instanceof Number) {
+                VertexIDType type = getUserVertexIDType((long) vertexId);
+                assert type.offset()==USERVERTEX_PADDING_BITWIDTH;
+                long partition = getPartitionId((long) vertexId);
+                long count = (long) vertexId>>>(partitionBits+USERVERTEX_PADDING_BITWIDTH);
+                assert count>0;
+                long keyId = (partition<<partitionOffset) | type.addPadding(count);
+                if (allowStringVertexId) {
+                    return BufferUtil.getLongBufferWithMarker(keyId, marker);
+                } else {
+                    return BufferUtil.getLongBuffer(keyId);
+                }
+            } else if (vertexId instanceof String) {
+                assert allowStringVertexId;
+                return BufferUtil.getStringBufferWithMarker((String) vertexId, marker);
+            } else {
+                throw new IllegalArgumentException("Only long and string types are supported for vertexId: " + vertexId);
+            }
         }
     }
 
-    public long getKeyID(StaticBuffer b) {
-        long value = b.getLong(0);
+    public Object getKeyID(StaticBuffer b) {
+        int position = 0;
+        if (allowStringVertexId && (b.getByte(position++) == STRING_MARKER)) {
+            // id is of string type
+            ReadBuffer readBuffer = b.asReadBuffer();
+            readBuffer.movePositionTo(position);
+            return VariableString.read(readBuffer);
+        }
+        long value = b.getLong(position);
         if (VertexIDType.Schema.is(value)) {
             return value;
         } else {
@@ -594,7 +633,7 @@ public class IDManager {
         return id>>USERVERTEX_PADDING_BITWIDTH+partitionBits;
     }
 
-    public boolean isPartitionedVertex(long id) {
+    public boolean isPartitionedVertex(Object id) {
         return isUserVertexId(id) && VertexIDType.PartitionedVertex.is(id);
     }
 
@@ -673,7 +712,7 @@ public class IDManager {
         return typeId;
     }
 
-    public static boolean isSystemRelationTypeId(long id) {
+    public static boolean isSystemRelationTypeId(Object id) {
         return VertexIDType.SystemEdgeLabel.is(id) || VertexIDType.SystemPropertyKey.is(id);
     }
 
@@ -683,31 +722,31 @@ public class IDManager {
 
     //ID inspection ------------------------------
 
-    public final boolean isSchemaVertexId(long id) {
+    public final boolean isSchemaVertexId(Object id) {
         return isRelationTypeId(id) || isVertexLabelVertexId(id) || isGenericSchemaVertexId(id);
     }
 
-    public final boolean isRelationTypeId(long id) {
+    public final boolean isRelationTypeId(Object id) {
         return VertexIDType.RelationType.is(id);
     }
 
-    public final boolean isEdgeLabelId(long id) {
+    public final boolean isEdgeLabelId(Object id) {
         return VertexIDType.EdgeLabel.is(id);
     }
 
-    public final boolean isPropertyKeyId(long id) {
+    public final boolean isPropertyKeyId(Object id) {
         return VertexIDType.PropertyKey.is(id);
     }
 
-    public boolean isGenericSchemaVertexId(long id) {
+    public boolean isGenericSchemaVertexId(Object id) {
         return VertexIDType.GenericSchemaType.is(id);
     }
 
-    public boolean isVertexLabelVertexId(long id) {
+    public boolean isVertexLabelVertexId(Object id) {
         return VertexIDType.VertexLabel.is(id);
     }
 
-    public boolean isUnmodifiableVertex(long id) {
+    public boolean isUnmodifiableVertex(Object id) {
         return isUserVertexId(id) && VertexIDType.UnmodifiableVertex.is(id);
     }
 }

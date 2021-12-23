@@ -87,13 +87,13 @@ public class VertexIDAssigner implements AutoCloseable {
     private final int partitionIdBound;
     private final boolean hasLocalPartitions;
 
-    public VertexIDAssigner(Configuration config, IDAuthority idAuthority, StoreFeatures idAuthFeatures) {
+    public VertexIDAssigner(Configuration config, IDAuthority idAuthority, StoreFeatures idAuthFeatures, boolean allowStringVertexId) {
         Preconditions.checkNotNull(idAuthority);
         this.idAuthority = idAuthority;
 
 
         int partitionBits = NumberUtil.getPowerOf2(config.get(CLUSTER_MAX_PARTITIONS));
-        idManager = new IDManager(partitionBits);
+        idManager = new IDManager(partitionBits, allowStringVertexId);
         Preconditions.checkArgument(idManager.getPartitionBound() <= Integer.MAX_VALUE && idManager.getPartitionBound()>0);
         this.partitionIdBound = (int)idManager.getPartitionBound();
         hasLocalPartitions = idAuthFeatures.hasLocalKeyPartition();
@@ -176,13 +176,23 @@ public class VertexIDAssigner implements AutoCloseable {
                     partitionID = placementStrategy.getPartition(element);
             } else if (element instanceof InternalRelation) {
                 InternalRelation relation = (InternalRelation)element;
-                if (attempt < relation.getLen()) { //On the first attempts, try to use partition of incident vertices
+                // On the first attempts, try to use partition of incident vertices
+                if (attempt < relation.getLen()) {
                     InternalVertex incident = relation.getVertex(attempt);
                     Preconditions.checkArgument(incident.hasId());
-                    if (!IDManager.VertexIDType.PartitionedVertex.is(incident.longId()) || relation.isProperty()) {
-                        partitionID = getPartitionID(incident);
+                    // FIXME: when the vertex id is user-given and of long type, we always use
+                    // the first partition. This can cause load imbalance problems. Need to investigate
+                    // if there is backward incompatibility issue if we fix this.
+                    if (incident.id() instanceof Number) {
+                        if (!IDManager.VertexIDType.PartitionedVertex.is(incident.id()) || relation.isProperty()) {
+                            partitionID = getPartitionID(incident);
+                        } else {
+                            continue;
+                        }
                     } else {
-                        continue;
+                        // for custom string vertex ids, we find a consistent partitionId
+                        assert incident.id() instanceof String;
+                        partitionID = Math.abs(incident.id().hashCode() % partitionIdBound);
                     }
                 } else {
                     partitionID = placementStrategy.getPartition(element);
@@ -209,7 +219,7 @@ public class VertexIDAssigner implements AutoCloseable {
                 if (relation.isProperty() && isPartitionedAt(relation,0)) {
                     //Always assign properties to the canonical representative of a partitioned vertex
                     InternalVertex vertex = relation.getVertex(0);
-                    ((ReassignableRelation)relation).setVertexAt(0,vertex.tx().getInternalVertex(idManager.getCanonicalVertexId(vertex.longId())));
+                    ((ReassignableRelation)relation).setVertexAt(0,vertex.tx().getInternalVertex(idManager.getCanonicalVertexId((long) vertex.id())));
                 } else if (relation.isEdge()) {
                     for (int pos = 0; pos < relation.getArity(); pos++) {
                         if (isPartitionedAt(relation, pos)) {
@@ -218,7 +228,7 @@ public class VertexIDAssigner implements AutoCloseable {
                             int otherPosition = (pos+1)%2;
                             if (((InternalRelationType)relation.getType()).multiplicity().isUnique(EdgeDirection.fromPosition(pos))) {
                                 //If the relation is unique in the direction, we assign it to the canonical vertex...
-                                newPartition = idManager.getPartitionId(idManager.getCanonicalVertexId(incident.longId()));
+                                newPartition = idManager.getPartitionId(idManager.getCanonicalVertexId((long) incident.id()));
                             } else if (!isPartitionedAt(relation,otherPosition)) {
                                 //...else, we assign it to the partition of the non-partitioned vertex...
                                 newPartition = getPartitionID(relation.getVertex(otherPosition));
@@ -226,7 +236,7 @@ public class VertexIDAssigner implements AutoCloseable {
                                 //...and if such does not exists (i.e. both end vertices are partitioned) we use the hash of the relation id
                                 newPartition = idManager.getPartitionHashForId(relation.longId());
                             }
-                            if (idManager.getPartitionId(incident.longId())!=newPartition) {
+                            if (idManager.getPartitionId((long) incident.id())!=newPartition) {
                                 ((ReassignableRelation)relation).setVertexAt(pos,incident.tx().getOtherPartitionVertex(incident, newPartition));
                             }
                         }
@@ -239,7 +249,7 @@ public class VertexIDAssigner implements AutoCloseable {
     }
 
     private boolean isPartitionedAt(InternalRelation relation, int position) {
-        return idManager.isPartitionedVertex(relation.getVertex(position).longId());
+        return idManager.isPartitionedVertex(relation.getVertex(position).id());
     }
 
     public void assignIDs(Iterable<InternalRelation> addedRelations) {
@@ -300,7 +310,7 @@ public class VertexIDAssigner implements AutoCloseable {
     }
 
     private long getPartitionID(final InternalVertex v) {
-        long vid = v.longId();
+        long vid = (long) v.id();
         if (IDManager.VertexIDType.Schema.is(vid)) return IDManager.SCHEMA_PARTITION;
         else return idManager.getPartitionId(vid);
     }

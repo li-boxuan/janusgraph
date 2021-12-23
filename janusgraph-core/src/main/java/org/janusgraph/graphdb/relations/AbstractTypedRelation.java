@@ -48,8 +48,9 @@ public abstract class AbstractTypedRelation extends AbstractElement implements I
         if (isLoadedInThisTx()) {
             return this;
         }
-
-        InternalRelation next = (InternalRelation) RelationIdentifierUtils.findRelation(RelationIdentifierUtils.get(this), tx());
+        StandardJanusGraphTx tx = tx();
+        InternalRelation next = (InternalRelation) RelationIdentifierUtils.findRelation(
+            RelationIdentifierUtils.get(this, (long) super.id()), tx);
         if (next == null) {
             throw InvalidElementException.removedException(this);
         }
@@ -115,7 +116,11 @@ public abstract class AbstractTypedRelation extends AbstractElement implements I
 
     @Override
     public RelationIdentifier id() {
-        return RelationIdentifierUtils.get(this);
+        return RelationIdentifierUtils.get(this, (long) super.id());
+    }
+
+    public long longId() {
+        return (long) super.id();
     }
 
     /* ---------------------------------------------------------------
@@ -154,6 +159,11 @@ public abstract class AbstractTypedRelation extends AbstractElement implements I
             return ((ImplicitKey) key).computeProperty(this);
         }
         return it().getValueDirect(key);
+    }
+
+    @Override
+    protected Object getCompareId() {
+        return longId();
     }
 
     @Override

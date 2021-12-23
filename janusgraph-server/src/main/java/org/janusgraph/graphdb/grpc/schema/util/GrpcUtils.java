@@ -23,7 +23,7 @@ public class GrpcUtils {
 
     public static VertexLabel createVertexLabelProto(org.janusgraph.core.VertexLabel vertexLabel) {
         return VertexLabel.newBuilder()
-            .setId(Int64Value.of(vertexLabel.longId()))// TODO: we have to check that id is permanent
+            .setId(Int64Value.of((long) vertexLabel.id()))// TODO: we have to check that id is permanent
             .setName(vertexLabel.name())
             .setPartitioned(vertexLabel.isPartitioned())
             .setReadOnly(vertexLabel.isStatic())
@@ -64,7 +64,7 @@ public class GrpcUtils {
 
     public static EdgeLabel createEdgeLabelProto(org.janusgraph.core.EdgeLabel edgeLabel) {
         return EdgeLabel.newBuilder()
-            .setId(Int64Value.of(edgeLabel.longId()))// TODO: we have to check that id is permanent
+            .setId(Int64Value.of((long) edgeLabel.id()))// TODO: we have to check that id is permanent
             .setName(edgeLabel.name())
             .setMultiplicity(convertToGrpcMultiplicity(edgeLabel.multiplicity()))
             .setDirection(edgeLabel.isDirected() ? EdgeLabel.Direction.BOTH : EdgeLabel.Direction.OUT)

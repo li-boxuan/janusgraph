@@ -89,21 +89,21 @@ public class JanusGraphHadoopSetupImpl implements JanusGraphHadoopSetup {
 
             @Override
             public boolean isVertexExistsSystemType(long typeId) {
-                return typeId == BaseKey.VertexExists.longId();
+                return typeId == (long) BaseKey.VertexExists.id();
             }
 
             @Override
             public boolean isVertexLabelSystemType(long typeId) {
-                return typeId == BaseLabel.VertexLabelEdge.longId();
+                return typeId == (long) BaseLabel.VertexLabelEdge.id();
             }
 
             @Override
             public boolean isTypeSystemType(long typeId) {
-                return typeId == BaseKey.SchemaCategory.longId() ||
-                        typeId == BaseKey.SchemaDefinitionProperty.longId() ||
-                        typeId == BaseKey.SchemaDefinitionDesc.longId() ||
-                        typeId == BaseKey.SchemaName.longId() ||
-                        typeId == BaseLabel.SchemaDefinitionEdge.longId();
+                return typeId == (long) BaseKey.SchemaCategory.id() ||
+                        typeId == (long) BaseKey.SchemaDefinitionProperty.id() ||
+                        typeId == (long) BaseKey.SchemaDefinitionDesc.id() ||
+                        typeId == (long) BaseKey.SchemaName.id() ||
+                        typeId == (long) BaseLabel.SchemaDefinitionEdge.id();
             }
         };
     }

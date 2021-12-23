@@ -104,7 +104,7 @@ public class CacheEdge extends AbstractEdge {
 
     @Override
     public <O> O getValueDirect(PropertyKey key) {
-        return getPropertyMap().get(key.longId());
+        return getPropertyMap().get((long) key.id());
     }
 
     @Override

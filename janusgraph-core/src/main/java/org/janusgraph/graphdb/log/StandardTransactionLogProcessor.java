@@ -92,6 +92,7 @@ public class StandardTransactionLogProcessor implements TransactionRecovery {
     private final AtomicLong txCounter = new AtomicLong(0);
     private final BackgroundCleaner cleaner;
     private final boolean verboseLogging;
+    private final boolean allowStringVertexId;
 
     private final AtomicLong successTxCounter = new AtomicLong(0);
     private final AtomicLong failureTxCounter = new AtomicLong(0);
@@ -112,6 +113,7 @@ public class StandardTransactionLogProcessor implements TransactionRecovery {
         this.graph = graph;
         this.serializer = graph.getDataSerializer();
         this.times = graph.getConfiguration().getTimestampProvider();
+        this.allowStringVertexId = graph.getConfiguration().allowStringVertexId();
         final Log txLog = graph.getBackend().getSystemTxLog();
         this.persistenceTime = graph.getConfiguration().getMaxWriteTime();
         this.verboseLogging = graph.getConfiguration().getConfiguration()
@@ -215,7 +217,7 @@ public class StandardTransactionLogProcessor implements TransactionRecovery {
                                 && isFailedIndex.apply(index.getBackingIndexName())) {
                                 assert rel.isProperty();
                                 indexRestores.put(index.getBackingIndexName(), new IndexRestore(
-                                    rel.getVertex(0).longId(), ElementCategory.VERTEX, getIndexId(index)));
+                                    rel.getVertex(0).id(), ElementCategory.VERTEX, getIndexId(index)));
                             }
                         }
                         //See if relation itself is affected
