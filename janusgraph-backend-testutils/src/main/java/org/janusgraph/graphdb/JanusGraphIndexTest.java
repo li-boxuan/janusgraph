@@ -109,7 +109,6 @@ import java.util.stream.Collectors;
 
 import static org.apache.tinkerpop.gremlin.process.traversal.Order.asc;
 import static org.apache.tinkerpop.gremlin.process.traversal.Order.desc;
-import static org.janusgraph.graphdb.JanusGraphTest.evaluateQuery;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.FORCE_INDEX_USAGE;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_BACKEND;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.INDEX_NAME_MAPPING;
@@ -2592,7 +2591,7 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
         }
         StandardJanusGraphTx queryTx = (StandardJanusGraphTx) graph.newTransaction();
         for (JanusGraphVertex v : vertices) {
-            if (!graph.edgeQuery(v.longId(), graph.vertexExistenceQuery, queryTx.getTxHandle()).isEmpty()) {
+            if (!graph.edgeQuery(v.id(), graph.vertexExistenceQuery, queryTx.getTxHandle()).isEmpty()) {
                 queryTx.rollback();
                 return false;
             }

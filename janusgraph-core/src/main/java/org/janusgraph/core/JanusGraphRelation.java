@@ -100,5 +100,5 @@ public interface JanusGraphRelation extends JanusGraphElement {
      */
     boolean isEdge();
 
-
+    long longId();
 }

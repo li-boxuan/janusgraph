@@ -14,11 +14,12 @@
 
 package org.janusgraph.graphdb.relations;
 
-import com.google.common.base.Preconditions;
 import org.janusgraph.util.encoding.LongEncoding;
 
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Base64;
 
 /**
  * @author Matthias Broecheler (me@matthiasb.com)
@@ -28,23 +29,32 @@ public final class RelationIdentifier implements Serializable {
 
     public static final String TOSTRING_DELIMITER = "-";
 
-    private final long outVertexId;
+    public static final byte LONG_MARKER = 0;
+    public static final byte STRING_MARKER = 1;
+    public static final byte NULL_MARKER = 2;
+
+    private final Object outVertexId;
     private final long typeId;
     private final long relationId;
-    private final long inVertexId;
+    private final Object inVertexId;
+    private boolean allowStringVertexId;
 
     private RelationIdentifier() {
-        outVertexId = 0;
+        outVertexId = null;
         typeId = 0;
         relationId = 0;
-        inVertexId = 0;
+        inVertexId = null;
     }
 
-    public RelationIdentifier(final long outVertexId, final long typeId, final long relationId, final long inVertexId) {
+    public RelationIdentifier(final Object outVertexId, final long typeId, final long relationId, final Object inVertexId) {
         this.outVertexId = outVertexId;
         this.typeId = typeId;
         this.relationId = relationId;
         this.inVertexId = inVertexId;
+    }
+
+    public void setAllowStringVertexId(final boolean allowStringVertexId) {
+        this.allowStringVertexId = allowStringVertexId;
     }
 
     public long getRelationId() {
@@ -55,23 +65,22 @@ public final class RelationIdentifier implements Serializable {
         return typeId;
     }
 
-    public long getOutVertexId() {
+    public Object getOutVertexId() {
         return outVertexId;
     }
 
-    public long getInVertexId() {
-        Preconditions.checkState(inVertexId != 0);
+    public Object getInVertexId() {
         return inVertexId;
     }
 
-    public static RelationIdentifier get(long[] ids) {
+    public static RelationIdentifier get(Object[] ids) {
         if (ids.length != 3 && ids.length != 4)
             throw new IllegalArgumentException("Not a valid relation identifier: " + Arrays.toString(ids));
         for (int i = 0; i < 3; i++) {
-            if (ids[i] < 0)
+            if (ids[i] instanceof Number && (long) ids[i] < 0)
                 throw new IllegalArgumentException("Not a valid relation identifier: " + Arrays.toString(ids));
         }
-        return new RelationIdentifier(ids[1], ids[2], ids[0], ids.length == 4 ? ids[3] : 0);
+        return new RelationIdentifier(ids[1], (long) ids[2], (long) ids[0], ids.length == 4 ? ids[3] : 0);
     }
 
     public static RelationIdentifier get(int[] ids) {
@@ -82,15 +91,6 @@ public final class RelationIdentifier implements Serializable {
                 throw new IllegalArgumentException("Not a valid relation identifier: " + Arrays.toString(ids));
         }
         return new RelationIdentifier(ids[1], ids[2], ids[0], ids.length == 4 ? ids[3] : 0);
-    }
-
-    public long[] getLongRepresentation() {
-        long[] r = new long[3 + (inVertexId != 0 ? 1 : 0)];
-        r[0] = relationId;
-        r[1] = outVertexId;
-        r[2] = typeId;
-        if (inVertexId != 0) r[3] = inVertexId;
-        return r;
     }
 
     @Override
@@ -106,26 +106,98 @@ public final class RelationIdentifier implements Serializable {
         return relationId == oth.relationId && typeId == oth.typeId;
     }
 
-    @Override
-    public String toString() {
-        StringBuilder s = new StringBuilder();
-        s.append(LongEncoding.encode(relationId)).append(TOSTRING_DELIMITER).append(LongEncoding.encode(outVertexId))
-                .append(TOSTRING_DELIMITER).append(LongEncoding.encode(typeId));
-        if (inVertexId != 0) s.append(TOSTRING_DELIMITER).append(LongEncoding.encode(inVertexId));
-        return s.toString();
+    private int getByteBufSize() {
+        int ans = 18; // relationId (8) + typeId (8) + marker for outVertexId (1) + marker for inVertexId (1)
+        ans += outVertexId instanceof Number ? 8 : ((String) outVertexId).length();
+        if (inVertexId != null) {
+            ans += inVertexId instanceof Number ? 8 : ((String) inVertexId).length();
+        }
+        return ans;
     }
 
-    public static RelationIdentifier parse(String id) {
-        String[] elements = id.split(TOSTRING_DELIMITER);
-        if (elements.length != 3 && elements.length != 4)
-            throw new IllegalArgumentException("Not a valid relation identifier: " + id);
-        try {
-            return new RelationIdentifier(LongEncoding.decode(elements[1]),
+    private static void writeId(ByteBuffer buf, Object id) {
+        if (id == null) {
+            buf.put(NULL_MARKER);
+        } else if (id instanceof Number) {
+            buf.put(LONG_MARKER);
+            buf.putLong((long) id);
+        } else {
+            buf.put(STRING_MARKER);
+            final String sId = (String) id;
+            for (int i = 0; i < sId.length(); i++) {
+                int c = sId.charAt(i);
+                assert c <= 127;
+                byte b = (byte)c;
+                if (i+1==sId.length()) b |= 0x80; //End marker
+                buf.put(b);
+            }
+        }
+    }
+
+    private static Object readId(ByteBuffer buf) {
+        final byte marker = buf.get();
+        if (marker == NULL_MARKER) {
+            return null;
+        } else if (marker == LONG_MARKER) {
+            return buf.getLong();
+        } else {
+            assert marker == STRING_MARKER;
+            StringBuilder sb = new StringBuilder();
+            while (true) {
+                int c = 0xFF & buf.get();
+                sb.append((char)(c & 0x7F));
+                if ((c & 0x80) > 0) break;
+            }
+            return sb.toString();
+        }
+    }
+
+    public String toString(boolean allowStringVertexId) {
+        if (allowStringVertexId) {
+            ByteBuffer buf = ByteBuffer.allocate(getByteBufSize());
+            buf.putLong(relationId);
+            writeId(buf, outVertexId);
+            buf.putLong(typeId);
+            writeId(buf, inVertexId);
+            return Base64.getEncoder().encodeToString(buf.array());
+        } else {
+            StringBuilder s = new StringBuilder();
+            s.append(LongEncoding.encode(relationId)).append(TOSTRING_DELIMITER).append(LongEncoding.encode(((Number) outVertexId).longValue()))
+                .append(TOSTRING_DELIMITER).append(LongEncoding.encode(typeId));
+            if (inVertexId != null && ((Number) inVertexId).longValue() > 0) {
+                s.append(TOSTRING_DELIMITER).append(LongEncoding.encode(((Number) inVertexId).longValue()));
+            }
+            return s.toString();
+        }
+    }
+
+    @Override
+    public String toString() {
+        return toString(allowStringVertexId);
+    }
+
+    public static RelationIdentifier parse(String id, boolean allowStringVertexId) {
+        if (allowStringVertexId) {
+            ByteBuffer buf = ByteBuffer.wrap(Base64.getDecoder().decode(id));
+            long relationId = buf.getLong();
+            Object outVertexId = readId(buf);
+            long typeId = buf.getLong();
+            Object inVertexId = readId(buf);
+            RelationIdentifier rId = new RelationIdentifier(outVertexId, typeId, relationId, inVertexId);
+            rId.setAllowStringVertexId(true);
+            return rId;
+        } else {
+            String[] elements = id.split(TOSTRING_DELIMITER);
+            if (elements.length != 3 && elements.length != 4)
+                throw new IllegalArgumentException("Not a valid relation identifier: " + id);
+            try {
+                return new RelationIdentifier(LongEncoding.decode(elements[1]),
                     LongEncoding.decode(elements[2]),
                     LongEncoding.decode(elements[0]),
                     elements.length == 4 ? LongEncoding.decode(elements[3]) : 0);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid id - each token expected to be a number", e);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Invalid id - each token expected to be a number", e);
+            }
         }
     }
 }

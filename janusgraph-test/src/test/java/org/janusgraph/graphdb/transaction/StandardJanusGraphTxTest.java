@@ -67,7 +67,7 @@ public class StandardJanusGraphTxTest extends EasyMockSupport {
         DefaultSchemaMaker defaultSchemaMaker = createMock(DefaultSchemaMaker.class);
         IndexSelectionStrategy indexSelectionStrategy = createMock(ThresholdBasedIndexSelectionStrategy.class);
 
-        expect(mockGraph.getConfiguration()).andReturn(gdbConfig);
+        expect(mockGraph.getConfiguration()).andReturn(gdbConfig).times(2);
         expect(mockGraph.isOpen()).andReturn(true).anyTimes();
         expect(mockGraph.getDataSerializer()).andReturn(mockSerializer);
         expect(mockGraph.getEdgeSerializer()).andReturn(mockEdgeSerializer);
@@ -76,6 +76,7 @@ public class StandardJanusGraphTxTest extends EasyMockSupport {
         expect(mockGraph.getIndexSelector()).andReturn(indexSelectionStrategy);
 
         expect(gdbConfig.getTimestampProvider()).andReturn(tsProvider);
+        expect(gdbConfig.allowStringVertexId()).andReturn(false);
 
         expect(txConfig.isSingleThreaded()).andReturn(true);
         expect(txConfig.hasPreloadedData()).andReturn(false);

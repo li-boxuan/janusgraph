@@ -68,7 +68,7 @@ public abstract class JanusGraphGrpcServerBaseTest {
         VertexLabel createdVertexLabel = vertexLabelMaker.make();
 
         management.commit();
-        return createdVertexLabel.longId();
+        return (long) createdVertexLabel.id();
     }
 
     public long createEdgeLabel(String graph, EdgeLabelOrBuilder edgeLabel) {
@@ -83,7 +83,7 @@ public abstract class JanusGraphGrpcServerBaseTest {
         org.janusgraph.core.EdgeLabel createdEdgeLabel = edgeLabelMaker.make();
 
         management.commit();
-        return createdEdgeLabel.longId();
+        return (long) createdEdgeLabel.id();
     }
 
     private static Pair<Server, String> createServer(JanusGraphContextHandler contextHandler) throws IOException {

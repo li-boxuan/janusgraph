@@ -34,7 +34,7 @@ public class VertexLabelDefinition extends SchemaElementDefinition {
     }
 
     public VertexLabelDefinition(VertexLabel vl) {
-        this(vl.name(),vl.longId(),vl.isPartitioned(),vl.isStatic());
+        this(vl.name(),(long) vl.id(),vl.isPartitioned(),vl.isStatic());
     }
 
     public boolean isStatic() {

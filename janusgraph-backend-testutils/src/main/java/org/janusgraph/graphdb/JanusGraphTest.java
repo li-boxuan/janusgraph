@@ -16,7 +16,6 @@ package org.janusgraph.graphdb;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
@@ -45,11 +44,9 @@ import org.janusgraph.core.JanusGraphEdge;
 import org.janusgraph.core.JanusGraphElement;
 import org.janusgraph.core.JanusGraphException;
 import org.janusgraph.core.JanusGraphFactory;
-import org.janusgraph.core.JanusGraphQuery;
 import org.janusgraph.core.JanusGraphTransaction;
 import org.janusgraph.core.JanusGraphVertex;
 import org.janusgraph.core.JanusGraphVertexProperty;
-import org.janusgraph.core.JanusGraphVertexQuery;
 import org.janusgraph.core.Multiplicity;
 import org.janusgraph.core.PropertyKey;
 import org.janusgraph.core.RelationType;
@@ -102,8 +99,6 @@ import org.janusgraph.graphdb.internal.ElementCategory;
 import org.janusgraph.graphdb.internal.ElementLifeCycle;
 import org.janusgraph.graphdb.internal.InternalRelationType;
 import org.janusgraph.graphdb.internal.Order;
-import org.janusgraph.graphdb.internal.OrderList;
-import org.janusgraph.graphdb.internal.RelationCategory;
 import org.janusgraph.graphdb.log.StandardTransactionLogProcessor;
 import org.janusgraph.graphdb.olap.job.IndexRemoveJob;
 import org.janusgraph.graphdb.olap.job.IndexRepairJob;
@@ -111,11 +106,8 @@ import org.janusgraph.graphdb.query.JanusGraphPredicateUtils;
 import org.janusgraph.graphdb.query.QueryUtil;
 import org.janusgraph.graphdb.query.condition.MultiCondition;
 import org.janusgraph.graphdb.query.condition.PredicateCondition;
-import org.janusgraph.graphdb.query.graph.GraphCentricQueryBuilder;
 import org.janusgraph.graphdb.query.index.IndexSelectionUtil;
 import org.janusgraph.graphdb.query.profile.QueryProfiler;
-import org.janusgraph.graphdb.query.profile.SimpleQueryProfiler;
-import org.janusgraph.graphdb.query.vertex.BasicVertexCentricQueryBuilder;
 import org.janusgraph.graphdb.relations.AbstractEdge;
 import org.janusgraph.graphdb.relations.RelationIdentifier;
 import org.janusgraph.graphdb.schema.EdgeLabelDefinition;
@@ -135,6 +127,7 @@ import org.janusgraph.graphdb.vertices.CacheVertex;
 import org.janusgraph.testutil.FeatureFlag;
 import org.janusgraph.testutil.JanusGraphFeature;
 import org.janusgraph.testutil.TestGraphConfigs;
+import org.janusgraph.util.datastructures.AbstractIdListUtil;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -172,7 +165,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static org.apache.tinkerpop.gremlin.process.traversal.Order.asc;
 import static org.apache.tinkerpop.gremlin.process.traversal.Order.desc;
@@ -489,10 +481,10 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         uid = tx.getPropertyKey("name");
         n1.property(uid.name(), "abcd");
         clopen();
-        long nid = n1.longId();
+        long nid = (long) n1.id();
         uid = tx.getPropertyKey("name");
         assertNotNull(getV(tx, nid));
-        assertNotNull(getV(tx, uid.longId()));
+        assertNotNull(getV(tx, uid.id()));
         assertMissing(tx, nid + 64);
         uid = tx.getPropertyKey(uid.name());
         n1 = getV(tx, nid);
@@ -603,7 +595,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         String[] names = new String[noVertices];
         int[] ids = new int[noVertices];
         JanusGraphVertex[] nodes = new JanusGraphVertex[noVertices];
-        long[] nodeIds = new long[noVertices];
+        Object[] nodeIds = new Object[noVertices];
         List<Edge>[] nodeEdges = new List[noVertices];
         for (int i = 0; i < noVertices; i++) {
             names[i] = "vertex" + i;
@@ -639,7 +631,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
             nodeIds[i] = (Long) nodes[i].id();
             nodeEdgeIds[i] = new HashSet(10);
             for (Object r : nodeEdges[i]) {
-                nodeEdgeIds[i].add(((JanusGraphEdge) r).longId());
+                nodeEdgeIds[i].add(((JanusGraphEdge) r).id());
             }
         }
         clopen();
@@ -650,7 +642,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
             assertEquals(n, getVertex("name", names[i]));
             assertEquals(names[i], n.value("name"));
             nodes[i] = n;
-            assertEquals(nodeIds[i], n.longId());
+            assertEquals(nodeIds[i], n.id());
         }
         for (int i = 0; i < noVertices; i++) {
             JanusGraphVertex n = nodes[i];
@@ -673,13 +665,13 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
 
             Set edgeIds = new HashSet(10);
             for (JanusGraphEdge r : n.query().direction(Direction.OUT).edges()) {
-                edgeIds.add(r.longId());
+                edgeIds.add(r.id());
             }
             assertEquals(edgeIds, nodeEdgeIds[i], edgeIds + " vs " + nodeEdgeIds[i]);
         }
         newTx();
         //Bulk vertex retrieval
-        long[] vertexIdsOne = new long[noVertices / 10];
+        Object[] vertexIdsOne = new Object[noVertices / 10];
         System.arraycopy(nodeIds, 0, vertexIdsOne, 0, vertexIdsOne.length);
         //All non-cached
         verifyVerticesRetrieval(vertexIdsOne, Lists.newArrayList(tx.getVertices(vertexIdsOne)));
@@ -687,17 +679,17 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         //All cached
         verifyVerticesRetrieval(vertexIdsOne, Lists.newArrayList(tx.getVertices(vertexIdsOne)));
 
-        long[] vertexIdsTwo = new long[noVertices / 10 * 2];
+        Object[] vertexIdsTwo = new Object[noVertices / 10 * 2];
         System.arraycopy(nodeIds, 0, vertexIdsTwo, 0, vertexIdsTwo.length);
         //Partially cached
         verifyVerticesRetrieval(vertexIdsTwo, Lists.newArrayList(tx.getVertices(vertexIdsTwo)));
     }
 
-    private void verifyVerticesRetrieval(long[] vertexIds, List<JanusGraphVertex> vs) {
+    private void verifyVerticesRetrieval(Object[] vertexIds, List<JanusGraphVertex> vs) {
         assertEquals(vertexIds.length, vs.size());
-        final Set<Long> vertexIdSet = new HashSet<>(vs.size());
+        final Set<Object> vertexIdSet = new HashSet<>(vs.size());
         vs.forEach(v -> vertexIdSet.add((Long) v.id()));
-        for (final long vertexId : vertexIds) {
+        for (final Object vertexId : vertexIds) {
             assertTrue(vertexIdSet.contains(vertexId));
         }
     }
@@ -770,7 +762,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         assertEquals(Float.class, weight.dataType());
         sig = ((InternalRelationType) value).getSignature();
         assertEquals(1, sig.length);
-        assertEquals(weight.longId(), sig[0]);
+        assertEquals(weight.id(), sig[0]);
         assertTrue(mgmt.getGraphIndex(uid.name()).isUnique());
         assertFalse(mgmt.getGraphIndex(someId.name()).isUnique());
 
@@ -791,7 +783,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         assertEquals(0, ((InternalRelationType) friend).getSignature().length);
         sig = ((InternalRelationType) connect).getSignature();
         assertEquals(1, sig.length);
-        assertEquals(uid.longId(), sig[0]);
+        assertEquals(uid.id(), sig[0]);
         assertEquals(0, ((InternalRelationType) friend).getSortKey().length);
         assertEquals(Order.DEFAULT, ((InternalRelationType) friend).getSortOrder());
         assertEquals(SchemaStatus.ENABLED, ((InternalRelationType) friend).getStatus());
@@ -885,7 +877,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         assertEquals(Float.class, weight2.dataType());
         sig = ((InternalRelationType) value).getSignature();
         assertEquals(1, sig.length);
-        assertEquals(weight2.longId(), sig[0]);
+        assertEquals(weight2.id(), sig[0]);
         assertTrue(mgmt.getGraphIndex(uid.name()).isUnique());
         assertFalse(mgmt.getGraphIndex(someId2.name()).isUnique());
 
@@ -906,7 +898,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         assertEquals(0, ((InternalRelationType) friend).getSignature().length);
         sig = ((InternalRelationType) connect).getSignature();
         assertEquals(1, sig.length);
-        assertEquals(uid.longId(), sig[0]);
+        assertEquals(uid.id(), sig[0]);
         assertEquals(0, ((InternalRelationType) friend).getSortKey().length);
         assertEquals(Order.DEFAULT, ((InternalRelationType) friend).getSortOrder());
         assertEquals(SchemaStatus.ENABLED, ((InternalRelationType) friend).getStatus());
@@ -1220,7 +1212,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         assertEquals(String.class, pkd.getDataType());
         EdgeLabelDefinition eld = schemaContainer.getEdgeLabel("child");
         assertEquals("child", eld.getName());
-        assertEquals(child.longId(), eld.getLongId());
+        assertEquals(child.id(), eld.getLongId());
         assertEquals(Multiplicity.ONE2MANY, eld.getMultiplicity());
         assertFalse(eld.isUnidirected());
     }
@@ -2293,9 +2285,9 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
 
         newTx();
 
-        v1 = tx.getVertex(v1.longId());
+        v1 = tx.getVertex(v1.id());
         v1.property("name", "name2"); //Ensure that the old index record gets removed
-        v2 = tx.getVertex(v2.longId());
+        v2 = tx.getVertex(v2.id());
         v2.property("uid", 512); //Ensure that replacement is allowed
 
         newTx();
@@ -2323,7 +2315,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         assertEquals("knows", e.value(LABEL_NAME));
         assertEquals(BaseVertexLabel.DEFAULT_VERTEXLABEL.name(), v.value(LABEL_NAME));
         assertCount(1, v.query().direction(Direction.BOTH).labels("knows").has(ID_NAME, eid).edges());
-        assertCount(0, v.query().direction(Direction.BOTH).labels("knows").has(ID_NAME, RelationIdentifier.get(new long[]{4, 5, 6, 7})).edges());
+        assertCount(0, v.query().direction(Direction.BOTH).labels("knows").has(ID_NAME, RelationIdentifier.get(new Object[]{4L, 5L, 6L, 7L})).edges());
         assertCount(1, v.query().direction(Direction.BOTH).labels("knows").has("~nid", eid.getRelationId()).edges());
         assertCount(0, v.query().direction(Direction.BOTH).labels("knows").has("~nid", 110111).edges());
         //Test edge retrieval
@@ -2331,7 +2323,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         assertEquals(eid, getE(graph, eid).id());
         //Test adjacent constraint
         assertEquals(1, v.query().direction(BOTH).has("~adjacent", u.id()).edgeCount());
-        assertCount(1, v.query().direction(BOTH).has("~adjacent", (int) getId(u)).edges());
+        assertCount(1, v.query().direction(BOTH).has("~adjacent", getId(u)).edges());
         try {
             //Not a valid vertex
             assertCount(0, v.query().direction(BOTH).has("~adjacent", 110111).edges());
@@ -2440,9 +2432,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         graph.tx().commit();
 
         VertexProperty prop = v1.properties().next();
-        assertTrue(getId(prop) > 0);
         prop = (VertexProperty) ((Iterable) graph.multiQuery(v1).properties().values().iterator().next()).iterator().next();
-        assertTrue(getId(prop) > 0);
 
         assertEquals(45, e3.<Integer>value("time").intValue());
         assertEquals(5, e1.<Integer>value("time").intValue());
@@ -2565,7 +2555,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         graph.tx().commit();
 
         JanusGraphVertexProperty p = (JanusGraphVertexProperty) cartman.properties().next();
-        assertTrue((p.longId()) > 0);
+        assertTrue(p.longId() > 0);
         graph.tx().commit();
     }
 
@@ -2985,8 +2975,8 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         /*
          ==== check fork, no fork behavior
          */
-        long e1id = getId(e1);
-        long e2id = getId(e2);
+        Object e1id = getId(e1);
+        Object e2id = getId(e2);
         e1 = Iterables.getOnlyElement(v1.query().direction(Direction.OUT).labels("connect").edges());
         assertEquals("e1", e1.value("name"));
         assertEquals(e1id, getId(e1));
@@ -3013,7 +3003,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
          === check cross transaction
          */
         final Random random = new Random();
-        final long[] vertexIds = {getId(v1), getId(v2), getId(v3)};
+        final Object[] vertexIds = {getId(v1), getId(v2), getId(v3)};
         //1) Index uniqueness
         executeLockConflictingTransactionJobs(graph, new TransactionJob() {
             private int pos = 0;
@@ -3120,7 +3110,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
 
         JanusGraphVertex baseV = tx.addVertex("name", "base");
         newTx();
-        final long baseVid = getId(baseV);
+        final Object baseVid = getId(baseV);
         final String nameA = "a", nameB = "b";
         final int parallelThreads = 4;
 
@@ -3275,17 +3265,17 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
 
         clopen();
 
-        long[] vertexIdSubset = new long[31 - 3];
-        for (int i = 0; i < vertexIdSubset.length; i++) vertexIdSubset[i] = vs[i + 3].longId();
+        Object[] vertexIdSubset = new Object[31 - 3];
+        for (int i = 0; i < vertexIdSubset.length; i++) vertexIdSubset[i] = vs[i + 3].id();
         Arrays.sort(vertexIdSubset);
 
         //##################################################
         //Queries from Cache
         //##################################################
         clopen();
-        for (int i = 1; i < noVertices; i++) vs[i] = getV(tx, vs[i].longId());
-        v = getV(tx, v.longId());
-        u = getV(tx, u.longId());
+        for (int i = 1; i < noVertices; i++) vs[i] = getV(tx, vs[i].id());
+        v = getV(tx, v.id());
+        u = getV(tx, u.id());
         qvs = new JanusGraphVertex[]{vs[6], vs[9], vs[12], vs[15], vs[60]};
 
         //To trigger queries from cache (don't copy!!!)
@@ -3414,9 +3404,9 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         //Same queries as above but without memory loading (i.e. omitting the first query)
         //##################################################
         clopen();
-        for (int i = 1; i < noVertices; i++) vs[i] = getV(tx, vs[i].longId());
-        v = getV(tx, v.longId());
-        u = getV(tx, u.longId());
+        for (int i = 1; i < noVertices; i++) vs[i] = getV(tx, vs[i].id());
+        v = getV(tx, v.id());
+        u = getV(tx, u.id());
         qvs = new JanusGraphVertex[]{vs[6], vs[9], vs[12], vs[15], vs[60]};
 
         assertEquals(10, Iterables.size(v.query().labels("connect").limit(10).vertices()));
@@ -3556,7 +3546,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         //Test partially new vertex queries
         final JanusGraphVertex[] qvs2 = new JanusGraphVertex[qvs.length + 2];
         qvs2[0] = tx.addVertex();
-        for (int i = 0; i < qvs.length; i++) qvs2[i + 1] = getV(tx, qvs[i].longId());
+        for (int i = 0; i < qvs.length; i++) qvs2[i + 1] = getV(tx, qvs[i].id());
         qvs2[qvs2.length - 1] = tx.addVertex();
         qvs2[0].addEdge("connect", qvs2[qvs2.length - 1]);
         qvs2[qvs2.length - 1].addEdge("connect", qvs2[0]);
@@ -4329,80 +4319,9 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
 
     private boolean isSortedByID(VertexList vl) {
         for (int i = 1; i < vl.size(); i++) {
-            if (vl.getID(i - 1) > vl.getID(i)) return false;
+            if (AbstractIdListUtil.compare(vl.getID(i - 1), vl.getID(i)) > 0) return false;
         }
         return true;
-    }
-
-    public static void evaluateQuery(JanusGraphVertexQuery query, RelationCategory resultType,
-                                     int expectedResults, int numSubQueries, boolean[] subQuerySpecs) {
-        evaluateQuery(query, resultType, expectedResults, numSubQueries, subQuerySpecs, ImmutableMap.of());
-    }
-
-    public static void evaluateQuery(JanusGraphVertexQuery query, RelationCategory resultType,
-                                     int expectedResults, int numSubQueries, boolean[] subQuerySpecs,
-                                     PropertyKey orderKey, Order order) {
-        evaluateQuery(query, resultType, expectedResults, numSubQueries, subQuerySpecs, ImmutableMap.of(orderKey, order));
-    }
-
-
-    public static void evaluateQuery(JanusGraphVertexQuery query, RelationCategory resultType,
-                                     int expectedResults, int numSubQueries, boolean[] subQuerySpecs,
-                                     Map<PropertyKey, Order> orderMap) {
-        SimpleQueryProfiler profiler = new SimpleQueryProfiler();
-        ((BasicVertexCentricQueryBuilder) query).profiler(profiler);
-
-        Iterable<? extends JanusGraphElement> result;
-        switch (resultType) {
-            case PROPERTY:
-                result = query.properties();
-                break;
-            case EDGE:
-                result = query.edges();
-                break;
-            case RELATION:
-                result = query.relations();
-                break;
-            default:
-                throw new AssertionError();
-        }
-        OrderList orders = profiler.getAnnotation(QueryProfiler.ORDERS_ANNOTATION);
-
-        //Check elements and that they are returned in the correct order
-        int no = 0;
-        JanusGraphElement previous = null;
-        for (JanusGraphElement e : result) {
-            assertNotNull(e);
-            no++;
-            if (previous != null && !orders.isEmpty()) {
-                assertTrue(orders.compare(previous, e) <= 0);
-            }
-            previous = e;
-        }
-        assertEquals(expectedResults, no);
-
-        //Check OrderList of query
-        assertNotNull(orders);
-        assertEquals(orderMap.size(), orders.size());
-        for (int i = 0; i < orders.size(); i++) {
-            assertEquals(orderMap.get(orders.getKey(i)), orders.getOrder(i));
-        }
-        for (PropertyKey key : orderMap.keySet()) assertTrue(orders.containsKey(key));
-
-        //Check subqueries
-        assertEquals(Integer.valueOf(1), profiler.getAnnotation(QueryProfiler.NUMVERTICES_ANNOTATION));
-        int subQueryCounter = 0;
-        for (SimpleQueryProfiler subProfiler : profiler) {
-            assertNotNull(subProfiler);
-            if (subProfiler.getGroupName().equals(QueryProfiler.OPTIMIZATION)) continue;
-            if (subQuerySpecs.length == 2) { //0=>fitted, 1=>ordered
-                assertEquals(subQuerySpecs[0], subProfiler.getAnnotation(QueryProfiler.FITTED_ANNOTATION));
-                assertEquals(subQuerySpecs[1], subProfiler.getAnnotation(QueryProfiler.ORDERED_ANNOTATION));
-            }
-            //assertEquals(1,Iterables.size(subProfiler)); This only applies if a disk call is necessary
-            subQueryCounter++;
-        }
-        assertEquals(numSubQueries, subQueryCounter);
     }
 
     @Test
@@ -4432,14 +4351,14 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
     public void testRemoveCachedVertexVisibility() {
         // add vertices to hit limit of tx-cache-size
         int cacheSize = graph.getConfiguration().getTxVertexCacheSize();
-        List<Long> vertexIds = new ArrayList<>();
+        List<Object> vertexIds = new ArrayList<>();
         for (int i = 0 ; i < cacheSize; i++) {
             JanusGraphVertex vertex = graph.addVertex();
-            vertexIds.add(vertex.longId());
+            vertexIds.add(vertex.id());
         }
 
         // add one more vertex that will be evicted from tx cache on read
-        long vertexIdToBeDeleted = graph.addVertex().longId();
+        Object vertexIdToBeDeleted = graph.addVertex().id();
         graph.tx().commit();
 
         // retrieve the vertex and delete it
@@ -4865,13 +4784,13 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         JanusGraphVertex v1 = tx2.addVertex("weight", 111.1);
         v1.addEdge("knows", v1);
         tx2.commit();
-        final long v1id = getId(v1);
+        final Object v1id = getId(v1);
         txTimes[1] = times.getTime();
         tx2 = graph.buildTransaction().logIdentifier(userLogName).start();
         JanusGraphVertex v2 = tx2.addVertex("weight", 222.2);
         v2.addEdge("knows", getV(tx2, v1id));
         tx2.commit();
-        final long v2id = getId(v2);
+        final Object v2id = getId(v2);
         //Only read tx
         tx2 = graph.buildTransaction().logIdentifier(userLogName).start();
         v1 = getV(tx2, v1id);
@@ -5653,97 +5572,6 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
 
     }
 
-    public static void evaluateQuery(JanusGraphQuery query, ElementCategory resultType,
-                                     int expectedResults, boolean[] subQuerySpecs,
-                                     PropertyKey orderKey1, Order order1,
-                                     String... intersectingIndexes) {
-        evaluateQuery(query, resultType, expectedResults, subQuerySpecs,
-                ImmutableMap.of(orderKey1, order1), intersectingIndexes);
-    }
-
-    public static void evaluateQuery(JanusGraphQuery query, ElementCategory resultType,
-                                     int expectedResults, boolean[] subQuerySpecs,
-                                     PropertyKey orderKey1, Order order1, PropertyKey orderKey2, Order order2,
-                                     String... intersectingIndexes) {
-        evaluateQuery(query, resultType, expectedResults, subQuerySpecs,
-                ImmutableMap.of(orderKey1, order1, orderKey2, order2), intersectingIndexes);
-    }
-
-    public static void evaluateQuery(JanusGraphQuery query, ElementCategory resultType,
-                                     int expectedResults, boolean[] subQuerySpecs,
-                                     String... intersectingIndexes) {
-        evaluateQuery(query, resultType, expectedResults, subQuerySpecs, ImmutableMap.of(), intersectingIndexes);
-    }
-
-    public static void evaluateQuery(JanusGraphQuery query, ElementCategory resultType,
-                                     int expectedResults, boolean[] subQuerySpecs,
-                                     Map<PropertyKey, Order> orderMap, String... intersectingIndexes) {
-        if (intersectingIndexes == null) intersectingIndexes = new String[0];
-
-        SimpleQueryProfiler profiler = new SimpleQueryProfiler();
-        ((GraphCentricQueryBuilder) query).profiler(profiler);
-
-        Iterable<? extends JanusGraphElement> result;
-        switch (resultType) {
-            case PROPERTY:
-                result = query.properties();
-                break;
-            case EDGE:
-                result = query.edges();
-                break;
-            case VERTEX:
-                result = query.vertices();
-                break;
-            default:
-                throw new AssertionError();
-        }
-        OrderList orders = profiler.getAnnotation(QueryProfiler.ORDERS_ANNOTATION);
-
-        //Check elements and that they are returned in the correct order
-        int no = 0;
-        JanusGraphElement previous = null;
-        for (JanusGraphElement e : result) {
-            assertNotNull(e);
-            no++;
-            if (previous != null && !orders.isEmpty()) {
-                assertTrue(orders.compare(previous, e) <= 0);
-            }
-            previous = e;
-        }
-        assertEquals(expectedResults, no);
-
-        //Check OrderList of query
-        assertNotNull(orders);
-        assertEquals(orderMap.size(), orders.size());
-        for (int i = 0; i < orders.size(); i++) {
-            assertEquals(orderMap.get(orders.getKey(i)), orders.getOrder(i));
-        }
-        for (PropertyKey key : orderMap.keySet()) assertTrue(orders.containsKey(key));
-
-        //Check subqueries
-        SimpleQueryProfiler simpleQueryProfiler = Iterables.getOnlyElement(StreamSupport.stream(profiler.spliterator(), false)
-            .filter(p -> !p.getGroupName().equals(QueryProfiler.OPTIMIZATION)).collect(Collectors.toList()));
-        if (subQuerySpecs.length == 2) { //0=>fitted, 1=>ordered
-            assertEquals(subQuerySpecs[0], simpleQueryProfiler.getAnnotation(QueryProfiler.FITTED_ANNOTATION));
-            assertEquals(subQuerySpecs[1], simpleQueryProfiler.getAnnotation(QueryProfiler.ORDERED_ANNOTATION));
-        }
-        Set<String> indexNames = new HashSet<>();
-        int indexQueries = 0;
-        boolean fullScan = false;
-        for (SimpleQueryProfiler indexProfiler : simpleQueryProfiler) {
-            if (indexProfiler.getAnnotation(QueryProfiler.FULLSCAN_ANNOTATION) != null) {
-                fullScan = true;
-            } else {
-                indexNames.add(indexProfiler.getAnnotation(QueryProfiler.INDEX_ANNOTATION));
-                indexQueries++;
-            }
-        }
-        if (indexQueries > 0) assertFalse(fullScan);
-        if (fullScan) assertEquals(0, intersectingIndexes.length);
-        assertEquals(intersectingIndexes.length, indexQueries);
-        assertEquals(Sets.newHashSet(intersectingIndexes), indexNames);
-    }
-
     @Test
     public void testForceIndexUsage() {
         PropertyKey age = makeKey("age", Integer.class);
@@ -6406,7 +6234,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         assertVertexCentricIndexWithNull(v1);
 
         newTx();
-        v1 = tx.getVertex(v1.longId());
+        v1 = tx.getVertex(v1.id());
         //Queries copied from above
 
         assertVertexCentricIndexWithNull(v1);

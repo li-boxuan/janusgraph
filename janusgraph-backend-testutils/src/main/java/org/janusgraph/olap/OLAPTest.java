@@ -46,11 +46,9 @@ import org.janusgraph.core.JanusGraphVertex;
 import org.janusgraph.core.Multiplicity;
 import org.janusgraph.core.PropertyKey;
 import org.janusgraph.core.Transaction;
-import org.janusgraph.diskstorage.keycolumnvalue.scan.ScanJob;
 import org.janusgraph.diskstorage.keycolumnvalue.scan.ScanMetrics;
 import org.janusgraph.graphdb.JanusGraphBaseTest;
 import org.janusgraph.graphdb.olap.QueryContainer;
-import org.janusgraph.graphdb.olap.VertexJobConverter;
 import org.janusgraph.graphdb.olap.VertexScanJob;
 import org.janusgraph.graphdb.olap.computer.FulgoraGraphComputer;
 import org.janusgraph.graphdb.olap.job.GhostVertexRemover;
@@ -95,18 +93,6 @@ public abstract class OLAPTest extends JanusGraphBaseTest {
     @BeforeEach
     public void setUp(TestInfo testInfo) throws Exception {
         super.setUp(testInfo);
-    }
-
-    private ScanMetrics executeScanJob(VertexScanJob job) throws Exception {
-        return executeScanJob(VertexJobConverter.convert(graph,job));
-    }
-
-    private ScanMetrics executeScanJob(ScanJob job) throws Exception {
-        return graph.getBackend().buildEdgeScanJob()
-                .setNumProcessingThreads(2)
-                .setWorkBlockSize(100)
-                .setJob(job)
-                .execute().get();
     }
 
     private int generateRandomGraph(int numV) {
@@ -234,9 +220,9 @@ public abstract class OLAPTest extends JanusGraphBaseTest {
         v2.addEdge("knows",v3);
         v1.addEdge("knows",v2);
         newTx();
-        long v3id = getId(v3);
-        long v1id = getId(v1);
-        assertTrue(v3id>0);
+        Object v3id = getId(v3);
+        Object v1id = getId(v1);
+        assertTrue(!(v3id instanceof Number) || (long) v3id > 0);
 
         v3 = getV(tx, v3id);
         assertNotNull(v3);
@@ -256,7 +242,7 @@ public abstract class OLAPTest extends JanusGraphBaseTest {
         assertNull(getV(tx,v3id));
         v1 = getV(tx, v1id);
         assertNotNull(v1);
-        assertEquals(v3id, v1.query().direction(Direction.IN).labels("knows").vertices().iterator().next().longId());
+        assertEquals(v3id, v1.query().direction(Direction.IN).labels("knows").vertices().iterator().next().id());
         tx.commit();
         mgmt.commit();
 

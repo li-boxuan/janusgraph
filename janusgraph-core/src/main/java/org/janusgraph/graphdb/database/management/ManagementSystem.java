@@ -380,7 +380,7 @@ public class ManagementSystem implements JanusGraphManagement {
     }
 
     private static String composeRelationTypeIndexName(RelationType type, String name) {
-        return String.valueOf(type.longId()) + RELATION_INDEX_SEPARATOR + name;
+        return String.valueOf(type.id()) + RELATION_INDEX_SEPARATOR + name;
     }
 
     @Override
@@ -994,7 +994,7 @@ public class ManagementSystem implements JanusGraphManagement {
             this.schemaVertexId = vertex.longId();
             this.newStatus = newStatus;
             this.propertyKeys = StreamSupport.stream(keys.spliterator(), false)
-                .map(PropertyKey::longId)
+                .map(key -> (long) key.id())
                 .collect(Collectors.toSet());
         }
 
@@ -1234,7 +1234,7 @@ public class ManagementSystem implements JanusGraphManagement {
     private void updateConnectionEdgeConstraints(JanusGraphSchemaVertex edgeLabel, String oldName, String newName) {
         if (!(edgeLabel instanceof EdgeLabel)) return;
         ((EdgeLabel) edgeLabel).mappedConnections().stream()
-            .peek(s -> schemaCache.expireSchemaElement(s.getOutgoingVertexLabel().longId()))
+            .peek(s -> schemaCache.expireSchemaElement((long) s.getOutgoingVertexLabel().id()))
             .map(Connection::getConnectionEdge)
             .forEach(edge -> {
                 TypeDefinitionDescription desc = new TypeDefinitionDescription(TypeDefinitionCategory.CONNECTION_EDGE, newName);

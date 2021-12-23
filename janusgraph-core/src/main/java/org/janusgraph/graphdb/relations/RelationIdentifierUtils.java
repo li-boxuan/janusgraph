@@ -29,11 +29,13 @@ import org.janusgraph.graphdb.transaction.StandardJanusGraphTx;
 import org.janusgraph.graphdb.types.system.ImplicitKey;
 
 public class RelationIdentifierUtils {
-    public static RelationIdentifier get(InternalRelation r) {
-        if (r.hasId()) {
-            return new RelationIdentifier(r.getVertex(0).longId(),
-                r.getType().longId(),
-                r.longId(), (r.isEdge() ? r.getVertex(1).longId() : 0));
+    public static RelationIdentifier get(InternalRelation r, long relationId, boolean allowStringVertexId) {
+        if (relationId > 0) {
+            RelationIdentifier rId = new RelationIdentifier(r.getVertex(0).id(),
+                (long) r.getType().id(),
+                relationId, (r.isEdge() ? r.getVertex(1).id() : null));
+            rId.setAllowStringVertexId(allowStringVertexId);
+            return rId;
         } else return null;
     }
 
@@ -78,7 +80,7 @@ public class RelationIdentifierUtils {
         VertexCentricQueryBuilder query =
             ((VertexCentricQueryBuilder) v.query()).noPartitionRestriction().types(type).direction(dir).adjacent(other);
 
-        RelationType internalVertex = ((StandardJanusGraphTx) tx).getExistingRelationType(type.longId());
+        RelationType internalVertex = ((StandardJanusGraphTx) tx).getExistingRelationType((long) type.id());
         if (((InternalRelationType) internalVertex).getConsistencyModifier() != ConsistencyModifier.FORK) {
             query.has(ImplicitKey.JANUSGRAPHID.name(), rId.getRelationId());
         }

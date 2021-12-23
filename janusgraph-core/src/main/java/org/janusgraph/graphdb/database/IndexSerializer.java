@@ -56,6 +56,7 @@ import org.janusgraph.diskstorage.keycolumnvalue.KeySliceQuery;
 import org.janusgraph.diskstorage.util.BufferUtil;
 import org.janusgraph.diskstorage.util.HashingUtil;
 import org.janusgraph.diskstorage.util.StaticArrayEntry;
+import org.janusgraph.graphdb.database.idhandling.IDHandler;
 import org.janusgraph.graphdb.database.idhandling.VariableLong;
 import org.janusgraph.graphdb.database.management.ManagementSystem;
 import org.janusgraph.graphdb.database.serialize.DataOutput;
@@ -113,17 +114,24 @@ public class IndexSerializer {
     private static final int DEFAULT_OBJECT_BYTELEN = 30;
     private static final byte FIRST_INDEX_COLUMN_BYTE = 0;
 
+    private static final char LONG_ID_PREFIX = 'L';
+    private static final char STRING_ID_PREFIX = 'S';
+    private static final char RELATION_ID_PREFIX = 'R';
+
     private final Serializer serializer;
     private final Configuration configuration;
     private final Map<String, ? extends IndexInformation> mixedIndexes;
 
     private final boolean hashKeys;
     private final HashingUtil.HashLength hashLength = HashingUtil.HashLength.SHORT;
+    private final boolean allowStringVertexId;
 
-    public IndexSerializer(Configuration config, Serializer serializer, Map<String, ? extends IndexInformation> indexes, final boolean hashKeys) {
+    public IndexSerializer(Configuration config, Serializer serializer, Map<String, ? extends IndexInformation> indexes,
+                           final boolean hashKeys, boolean allowStringVertexId) {
         this.serializer = serializer;
         this.configuration = config;
         this.mixedIndexes = indexes;
+        this.allowStringVertexId = allowStringVertexId;
         this.hashKeys=hashKeys;
         if (hashKeys) log.info("Hashing index keys");
     }
@@ -545,7 +553,7 @@ public class IndexSerializer {
             values = new ArrayList<>();
             Iterable<JanusGraphVertexProperty> props;
             if (onlyLoaded ||
-                (!vertex.isNew() && IDManager.VertexIDType.PartitionedVertex.is(vertex.longId()))) {
+                (!vertex.isNew() && IDManager.VertexIDType.PartitionedVertex.is(vertex.id()))) {
                 //going through transaction so we can query deleted vertices
                 final VertexCentricQueryBuilder qb = ((InternalVertex)vertex).tx().query(vertex);
                 qb.noPartitionRestriction().type(key);
@@ -584,7 +592,7 @@ public class IndexSerializer {
                     entryValue.movePositionTo(entry.getValuePosition());
                     switch(index.getElement()) {
                         case VERTEX:
-                            results.add(VariableLong.readPositive(entryValue));
+                            results.add(IDHandler.readVertexId(entryValue, true, allowStringVertexId));
                             break;
                         default:
                             results.add(bytebuffer2RelationId(entryValue));
@@ -593,7 +601,7 @@ public class IndexSerializer {
             }
             return results.stream();
         } else {
-            return tx.indexQuery(index.getBackingIndexName(), query.getMixedQuery()).map(IndexSerializer::string2ElementId);
+            return tx.indexQuery(index.getBackingIndexName(), query.getMixedQuery()).map(this::string2ElementId);
         }
     }
 
@@ -751,19 +759,58 @@ public class IndexSerializer {
         return (MixedIndexType)index;
     }
 
-    private static String element2String(JanusGraphElement element) {
+    private String element2String(JanusGraphElement element) {
         return element2String(element.id());
     }
 
-    private static String element2String(Object elementId) {
-        Preconditions.checkArgument(elementId instanceof Long || elementId instanceof RelationIdentifier);
-        if (elementId instanceof Long) return longID2Name((Long)elementId);
-        else return ((RelationIdentifier) elementId).toString();
+    /**
+     * Convert an element's (including vertex and relation) id into a String
+     *
+     * If allowStringVertexId is enabled, we add a one character prefix as identifier to differentiate different types
+     * Otherwise, we don't add any special marker
+     * @param elementId
+     * @return
+     */
+    private String element2String(Object elementId) {
+        Preconditions.checkArgument(elementId instanceof Long || elementId instanceof RelationIdentifier || elementId instanceof String);
+        if (allowStringVertexId) {
+            if (elementId instanceof Long) {
+                return LONG_ID_PREFIX + longID2Name((Long)elementId);
+            } else if (elementId instanceof RelationIdentifier) {
+                return RELATION_ID_PREFIX + ((RelationIdentifier) elementId).toString();
+            } else {
+                return STRING_ID_PREFIX + (String) elementId;
+            }
+        } else {
+            if (elementId instanceof Long) {
+                return longID2Name((Long)elementId);
+            } else {
+                return ((RelationIdentifier) elementId).toString();
+            }
+        }
     }
 
-    private static Object string2ElementId(String str) {
-        if (str.contains(RelationIdentifier.TOSTRING_DELIMITER)) return RelationIdentifier.parse(str);
-        else return name2LongID(str);
+    private Object string2ElementId(String str) {
+        if (StringUtils.isEmpty(str)) {
+            throw new IllegalArgumentException("Empty string cannot be converted to a valid id");
+        }
+        if (allowStringVertexId) {
+            if (str.charAt(0) == LONG_ID_PREFIX) {
+                return name2LongID(str.substring(1));
+            } else if (str.charAt(0) == RELATION_ID_PREFIX) {
+                return RelationIdentifier.parse(str.substring(1), allowStringVertexId);
+            } else if (str.charAt(0) == STRING_ID_PREFIX) {
+                return str.substring(1);
+            } else {
+                throw new IllegalArgumentException("String is not a representation of a valid id: " + str);
+            }
+        } else {
+            if (str.contains(RelationIdentifier.TOSTRING_DELIMITER)) {
+                return RelationIdentifier.parse(str, allowStringVertexId);
+            } else {
+                return name2LongID(str);
+            }
+        }
     }
 
     private static String key2Field(MixedIndexType index, PropertyKey key) {
@@ -776,7 +823,7 @@ public class IndexSerializer {
     }
 
     private static String keyID2Name(PropertyKey key) {
-        return longID2Name(key.longId());
+        return longID2Name((long) key.id());
     }
 
     private static String longID2Name(long id) {
@@ -816,6 +863,7 @@ public class IndexSerializer {
 
     public long getIndexIdFromKey(StaticBuffer key) {
         if (hashKeys) key = HashingUtil.getKey(hashLength,key);
+        // TODO: revisit this
         return VariableLong.readPositive(key.asReadBuffer());
     }
 
@@ -823,7 +871,13 @@ public class IndexSerializer {
         final DataOutput out = serializer.getDataOutput(1+8+8*record.length+4*8);
         out.putByte(FIRST_INDEX_COLUMN_BYTE);
         if (index.getCardinality()!=Cardinality.SINGLE) {
-            VariableLong.writePositive(out,element.longId());
+            if (element instanceof JanusGraphVertex) {
+                IDHandler.writeVertexId(out, element.id(), true, allowStringVertexId);
+            } else {
+                assert element instanceof JanusGraphRelation;
+                assert ((JanusGraphRelation) element).longId() == ((RelationIdentifier) element.id()).getRelationId();
+                VariableLong.writePositive(out, ((JanusGraphRelation) element).longId());
+            }
             if (index.getCardinality()!=Cardinality.SET) {
                 for (final RecordEntry re : record) {
                     VariableLong.writePositive(out,re.relationId);
@@ -832,22 +886,30 @@ public class IndexSerializer {
         }
         final int valuePosition=out.getPosition();
         if (element instanceof JanusGraphVertex) {
-            VariableLong.writePositive(out,element.longId());
+            IDHandler.writeVertexId(out, element.id(), true, allowStringVertexId);
         } else {
             assert element instanceof JanusGraphRelation;
             final RelationIdentifier rid = (RelationIdentifier)element.id();
-            final long[] longs = rid.getLongRepresentation();
-            Preconditions.checkArgument(longs.length == 3 || longs.length == 4);
-            for (final long aLong : longs) VariableLong.writePositive(out, aLong);
+            VariableLong.writePositive(out, rid.getRelationId());
+            IDHandler.writeVertexId(out, rid.getOutVertexId(), true, allowStringVertexId);
+            VariableLong.writePositive(out, rid.getTypeId());
+            if (rid.getInVertexId() != null) {
+                IDHandler.writeVertexId(out, rid.getInVertexId(), true, allowStringVertexId);
+            }
         }
         return new StaticArrayEntry(out.getStaticBuffer(),valuePosition);
     }
 
-    private static RelationIdentifier bytebuffer2RelationId(ReadBuffer b) {
-        long[] relationId = new long[4];
-        for (int i = 0; i < 3; i++) relationId[i] = VariableLong.readPositive(b);
-        if (b.hasRemaining()) relationId[3] = VariableLong.readPositive(b);
-        else relationId = Arrays.copyOfRange(relationId,0,3);
+    private RelationIdentifier bytebuffer2RelationId(ReadBuffer b) {
+        Object[] relationId = new Object[4];
+        relationId[0] = VariableLong.readPositive(b);
+        relationId[1] = IDHandler.readVertexId(b, true, allowStringVertexId);
+        relationId[2] = VariableLong.readPositive(b);
+        if (b.hasRemaining()) {
+            relationId[3] = IDHandler.readVertexId(b, true, allowStringVertexId);
+        } else {
+            relationId = Arrays.copyOfRange(relationId,0,3);
+        }
         return RelationIdentifier.get(relationId);
     }
 

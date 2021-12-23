@@ -46,7 +46,7 @@ public abstract class SystemTypeManager {
             Map<Long, SystemRelationType> idBuilder = new HashMap<>(systemRelationTypes.length);
             Map<String, SystemRelationType> nameBuilder = new HashMap<>(systemRelationTypes.length);
             for (SystemRelationType et : systemRelationTypes) {
-                idBuilder.put(et.longId(), et);
+                idBuilder.put((long) et.id(), et);
                 nameBuilder.put(et.name(),et);
             }
             SYSTEM_TYPES_BY_ID = Collections.unmodifiableMap(idBuilder);

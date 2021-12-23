@@ -79,8 +79,8 @@ public class JanusGraphVertexDeserializer implements AutoCloseable {
     public TinkerVertex readHadoopVertex(final StaticBuffer key, Iterable<Entry> entries) {
 
         // Convert key to a vertex ID
-        final long vertexId = idManager.getKeyID(key);
-        Preconditions.checkArgument(vertexId > 0);
+        final Object vertexId = idManager.getKeyID(key);
+        Preconditions.checkArgument(vertexId instanceof String || (long) vertexId > 0);
 
         // Partitioned vertex handling
         if (idManager.isPartitionedVertex(vertexId)) {
@@ -101,7 +101,7 @@ public class JanusGraphVertexDeserializer implements AutoCloseable {
             final RelationCache relation = relationReader.parseRelation(data, false, typeManager);
             if (systemTypes.isVertexLabelSystemType(relation.typeId)) {
                 // Found vertex Label
-                long vertexLabelId = relation.getOtherVertexId();
+                long vertexLabelId = (long) relation.getOtherVertexId();
                 VertexLabel vl = typeManager.getExistingVertexLabel(vertexLabelId);
                 // Create TinkerVertex with this label
                 tv = getOrCreateVertex(vertexId, vl.name(), tg);
@@ -194,7 +194,7 @@ public class JanusGraphVertexDeserializer implements AutoCloseable {
         }
     }
 
-    public TinkerVertex getOrCreateVertex(final long vertexId, final String label, final TinkerGraph tg) {
+    public TinkerVertex getOrCreateVertex(final Object vertexId, final String label, final TinkerGraph tg) {
         TinkerVertex v;
 
         try {
@@ -214,7 +214,7 @@ public class JanusGraphVertexDeserializer implements AutoCloseable {
         RelationType rt = typeManager.getRelationType(name);
         if (null == rt || !rt.isPropertyKey())
             return VertexProperty.Cardinality.single;
-        PropertyKey pk = typeManager.getExistingPropertyKey(rt.longId());
+        PropertyKey pk = typeManager.getExistingPropertyKey((long) rt.id());
         switch (pk.cardinality()) {
             case SINGLE: return VertexProperty.Cardinality.single;
             case LIST: return VertexProperty.Cardinality.list;

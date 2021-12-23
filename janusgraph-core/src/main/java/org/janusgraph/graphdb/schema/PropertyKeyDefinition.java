@@ -39,7 +39,7 @@ public class PropertyKeyDefinition extends RelationTypeDefinition {
     }
 
     public PropertyKeyDefinition(PropertyKey key) {
-        this(key.name(),key.longId(),key.cardinality(),key.dataType());
+        this(key.name(),(long) key.id(),key.cardinality(),key.dataType());
     }
 
     public Class<?> getDataType() {

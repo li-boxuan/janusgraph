@@ -33,6 +33,7 @@ import org.janusgraph.graphdb.query.Query;
 import org.janusgraph.graphdb.query.condition.PredicateCondition;
 import org.janusgraph.graphdb.relations.RelationIdentifier;
 import org.janusgraph.graphdb.tinkerpop.ElementUtils;
+import org.janusgraph.graphdb.transaction.StandardJanusGraphTx;
 import org.janusgraph.graphdb.types.system.ImplicitKey;
 import org.janusgraph.graphdb.types.system.SystemRelationType;
 
@@ -78,13 +79,16 @@ public abstract class BaseVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q>
 
     private final SchemaInspector schemaInspector;
 
-    protected BaseVertexCentricQueryBuilder(SchemaInspector schemaInspector) {
-        this.schemaInspector = schemaInspector;
+    private final boolean allowStringVertexId;
+
+    protected BaseVertexCentricQueryBuilder(StandardJanusGraphTx tx) {
+        this.schemaInspector = tx;
+        allowStringVertexId = tx.isAllowStringVertexId();
     }
 
     protected abstract Q getThis();
 
-    protected abstract JanusGraphVertex getVertex(long vertexId);
+    protected abstract JanusGraphVertex getVertex(Object vertexId);
 
 
     /* ---------------------------------------------------------------
@@ -106,11 +110,11 @@ public abstract class BaseVertexCentricQueryBuilder<Q extends BaseVertexQuery<Q>
         //Treat special cases
         if (type.equals(ImplicitKey.ADJACENT_ID.name())) {
             Preconditions.checkArgument(rel == Cmp.EQUAL, "Only equality constraints are supported for %s", type);
-            long vertexId = ElementUtils.getVertexId(value);
-            Preconditions.checkArgument(vertexId > 0, "Expected valid vertex id: %s", value);
+            Object vertexId = ElementUtils.getVertexId(value);
+            Preconditions.checkArgument(vertexId instanceof String || (long) vertexId > 0, "Expected valid vertex id: %s", value);
             return adjacent(getVertex(vertexId));
         } else if (type.equals(ImplicitKey.ID.name())) {
-            RelationIdentifier rid = ElementUtils.getEdgeId(value);
+            RelationIdentifier rid = ElementUtils.getEdgeId(value, allowStringVertexId);
             Preconditions.checkNotNull(rid, "Expected valid relation id: %s", value);
             return addConstraint(ImplicitKey.JANUSGRAPHID.name(), rel, rid.getRelationId());
         } else {
