@@ -109,7 +109,6 @@ public class CQLStoreTest extends KeyColumnValueStoreTest {
     @FeatureFlag(feature = JanusGraphFeature.UnorderedScan)
     public void testUnorderedConfiguration(TestInfo testInfo) {
         final StoreFeatures features = this.manager.getFeatures();
-        assertFalse(features.isKeyOrdered());
         assertFalse(features.hasLocalKeyPartition());
     }
 
