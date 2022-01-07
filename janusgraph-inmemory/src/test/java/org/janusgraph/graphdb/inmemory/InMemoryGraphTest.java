@@ -96,8 +96,8 @@ public class InMemoryGraphTest extends JanusGraphTest {
     @Override @Test @Disabled
     public void simpleLogTestWithFailure() {}
 
-    @Override @Test @Disabled
-    public void testIndexUpdatesWithReindexAndRemove() {}
+//    @Override @Test @Disabled
+//    public void testIndexUpdatesWithReindexAndRemove() {}
 
     @Override @Test @Disabled
     public void testIndexUpdateSyncWithMultipleInstances() {}

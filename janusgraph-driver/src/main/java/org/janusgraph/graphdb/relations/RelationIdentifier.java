@@ -28,6 +28,13 @@ import java.util.Base64;
 public final class RelationIdentifier implements Serializable {
 
     public static final String TOSTRING_DELIMITER = "-";
+    /**
+     * this is a marker to represent that the id is serialized in a byte
+     * representation (encoded by base64). The marker MUST not use any
+     * character that might appear in {@link LongEncoding} encoder, so
+     * that we can distinguish the byte encoding from LongEncoding
+     */
+    public static final String BYTE_REPRESENTATION_MARKER = "B";
 
     public static final byte LONG_MARKER = 0;
     public static final byte STRING_MARKER = 1;
@@ -37,7 +44,6 @@ public final class RelationIdentifier implements Serializable {
     private final long typeId;
     private final long relationId;
     private final Object inVertexId;
-    private boolean allowStringVertexId;
 
     private RelationIdentifier() {
         outVertexId = null;
@@ -51,10 +57,6 @@ public final class RelationIdentifier implements Serializable {
         this.typeId = typeId;
         this.relationId = relationId;
         this.inVertexId = inVertexId;
-    }
-
-    public void setAllowStringVertexId(final boolean allowStringVertexId) {
-        this.allowStringVertexId = allowStringVertexId;
     }
 
     public long getRelationId() {
@@ -152,14 +154,15 @@ public final class RelationIdentifier implements Serializable {
         }
     }
 
-    public String toString(boolean allowStringVertexId) {
-        if (allowStringVertexId) {
+    @Override
+    public String toString() {
+        if (outVertexId instanceof String || inVertexId instanceof String) {
             ByteBuffer buf = ByteBuffer.allocate(getByteBufSize());
             buf.putLong(relationId);
             writeId(buf, outVertexId);
             buf.putLong(typeId);
             writeId(buf, inVertexId);
-            return Base64.getEncoder().encodeToString(buf.array());
+            return BYTE_REPRESENTATION_MARKER + Base64.getEncoder().encodeToString(buf.array());
         } else {
             StringBuilder s = new StringBuilder();
             s.append(LongEncoding.encode(relationId)).append(TOSTRING_DELIMITER).append(LongEncoding.encode(((Number) outVertexId).longValue()))
@@ -171,20 +174,14 @@ public final class RelationIdentifier implements Serializable {
         }
     }
 
-    @Override
-    public String toString() {
-        return toString(allowStringVertexId);
-    }
-
-    public static RelationIdentifier parse(String id, boolean allowStringVertexId) {
-        if (allowStringVertexId) {
-            ByteBuffer buf = ByteBuffer.wrap(Base64.getDecoder().decode(id));
+    public static RelationIdentifier parse(String id) {
+        if (id.startsWith(BYTE_REPRESENTATION_MARKER)) {
+            ByteBuffer buf = ByteBuffer.wrap(Base64.getDecoder().decode(id.substring(BYTE_REPRESENTATION_MARKER.length())));
             long relationId = buf.getLong();
             Object outVertexId = readId(buf);
             long typeId = buf.getLong();
             Object inVertexId = readId(buf);
             RelationIdentifier rId = new RelationIdentifier(outVertexId, typeId, relationId, inVertexId);
-            rId.setAllowStringVertexId(true);
             return rId;
         } else {
             String[] elements = id.split(TOSTRING_DELIMITER);

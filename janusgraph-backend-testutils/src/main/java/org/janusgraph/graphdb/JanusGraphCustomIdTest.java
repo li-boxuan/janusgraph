@@ -33,6 +33,7 @@ import org.janusgraph.diskstorage.configuration.BasicConfiguration;
 import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
 import org.janusgraph.diskstorage.configuration.WriteConfiguration;
 import org.janusgraph.diskstorage.keycolumnvalue.scan.ScanMetrics;
+import org.janusgraph.diskstorage.log.kcvs.KCVSLog;
 import org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration;
 import org.janusgraph.graphdb.database.management.ManagementSystem;
 import org.janusgraph.graphdb.internal.ElementCategory;
@@ -48,6 +49,7 @@ import org.junit.jupiter.api.TestInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -59,6 +61,9 @@ import static org.apache.tinkerpop.gremlin.process.traversal.Order.desc;
 import static org.apache.tinkerpop.gremlin.structure.Direction.OUT;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.ALLOW_SETTING_VERTEX_ID;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.ALLOW_STRING_VERTEX_ID;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.LOG_READ_INTERVAL;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.LOG_SEND_DELAY;
+import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.MANAGEMENT_LOG;
 import static org.janusgraph.graphdb.internal.RelationCategory.EDGE;
 import static org.janusgraph.graphdb.internal.RelationCategory.PROPERTY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -95,8 +100,8 @@ public abstract class JanusGraphCustomIdTest extends JanusGraphBaseTest {
 
     private void open(boolean allowSettingVertexId, boolean allowStringVertexId) {
         ModifiableConfiguration config = getModifiableConfiguration();
-        config.set(option(ALLOW_SETTING_VERTEX_ID).option, allowSettingVertexId, new String[0]);
-        config.set(option(ALLOW_STRING_VERTEX_ID).option, allowStringVertexId, new String[0]);
+        config.set(ALLOW_SETTING_VERTEX_ID, allowSettingVertexId, new String[0]);
+        config.set(ALLOW_STRING_VERTEX_ID, allowStringVertexId, new String[0]);
         open(config.getConfiguration());
     }
 
@@ -162,12 +167,20 @@ public abstract class JanusGraphCustomIdTest extends JanusGraphBaseTest {
 
     /**
      * See {@link JanusGraphTest#testIndexUpdatesWithReindexAndRemove()}
+     *
      * @throws ExecutionException
      * @throws InterruptedException
      */
     @Test
     public void testIndexUpdatesWithReindexAndRemove() throws ExecutionException, InterruptedException {
-        open(true, true);
+        ModifiableConfiguration config = getModifiableConfiguration();
+        config.set(ALLOW_SETTING_VERTEX_ID, true, new String[0]);
+        config.set(ALLOW_STRING_VERTEX_ID, true, new String[0]);
+        config.set(LOG_SEND_DELAY, Duration.ofMillis(0), MANAGEMENT_LOG);
+        config.set(KCVSLog.LOG_READ_LAG_TIME, Duration.ofMillis(50), MANAGEMENT_LOG);
+        config.set(LOG_READ_INTERVAL, Duration.ofMillis(250), MANAGEMENT_LOG);
+        open(config.getConfiguration());
+
         //Types without index
         PropertyKey time = mgmt.makePropertyKey("time").dataType(Integer.class).make();
         PropertyKey name = mgmt.makePropertyKey("name").dataType(String.class).cardinality(Cardinality.SET).make();
@@ -370,19 +383,20 @@ public abstract class JanusGraphCustomIdTest extends JanusGraphBaseTest {
 
     /**
      * See {@link OLAPTest#removeGhostVertices()}
+     *
      * @throws Exception
      */
     @Test
     public void removeGhostVertices() throws Exception {
         open(true, true);
         JanusGraphVertex v1 = tx.addVertex(T.label, "person", T.id, "person1");
-        v1.property("name","stephen");
+        v1.property("name", "stephen");
         JanusGraphVertex v2 = tx.addVertex(T.label, "person", T.id, "person2");
-        v1.property("name","marko");
+        v1.property("name", "marko");
         JanusGraphVertex v3 = tx.addVertex(T.label, "person", T.id, graph.getIDManager().toVertexId(3));
-        v1.property("name","dan");
-        v2.addEdge("knows",v3);
-        v1.addEdge("knows",v2);
+        v1.property("name", "dan");
+        v2.addEdge("knows", v3);
+        v1.addEdge("knows", v2);
         newTx();
         Object v3id = getId(v3);
         Object v1id = getId(v1);
@@ -404,7 +418,7 @@ public abstract class JanusGraphCustomIdTest extends JanusGraphBaseTest {
         xx.commit();
 
         newTx();
-        assertNull(getV(tx,v3id));
+        assertNull(getV(tx, v3id));
         v1 = getV(tx, v1id);
         assertNotNull(v1);
         assertEquals(v3id, v1.query().direction(Direction.IN).labels("knows").vertices().iterator().next().id());

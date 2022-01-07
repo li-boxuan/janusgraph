@@ -798,7 +798,7 @@ public class IndexSerializer {
             if (str.charAt(0) == LONG_ID_PREFIX) {
                 return name2LongID(str.substring(1));
             } else if (str.charAt(0) == RELATION_ID_PREFIX) {
-                return RelationIdentifier.parse(str.substring(1), allowStringVertexId);
+                return RelationIdentifier.parse(str.substring(1));
             } else if (str.charAt(0) == STRING_ID_PREFIX) {
                 return str.substring(1);
             } else {
@@ -806,7 +806,7 @@ public class IndexSerializer {
             }
         } else {
             if (str.contains(RelationIdentifier.TOSTRING_DELIMITER)) {
-                return RelationIdentifier.parse(str, allowStringVertexId);
+                return RelationIdentifier.parse(str);
             } else {
                 return name2LongID(str);
             }

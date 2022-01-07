@@ -30,7 +30,7 @@ public class RelationIdentifierTest {
         long relationId = 500;
         RelationIdentifier rId = new RelationIdentifier(outVertexId, typeId, relationId, inVertexId);
         String serialized = rId.toString();
-        RelationIdentifier deserialized = RelationIdentifier.parse(serialized, false);
+        RelationIdentifier deserialized = RelationIdentifier.parse(serialized);
         assertEquals(rId, deserialized);
         assertEquals(outVertexId, deserialized.getOutVertexId());
         assertEquals(inVertexId, deserialized.getInVertexId());
@@ -45,9 +45,8 @@ public class RelationIdentifierTest {
         long typeId = 123;
         long relationId = 500;
         RelationIdentifier rId = new RelationIdentifier(outVertexId, typeId, relationId, inVertexId);
-        rId.setAllowStringVertexId(true);
         String serialized = rId.toString();
-        RelationIdentifier deserialized = RelationIdentifier.parse(serialized, true);
+        RelationIdentifier deserialized = RelationIdentifier.parse(serialized);
         assertEquals(rId, deserialized);
         assertEquals(outVertexId, deserialized.getOutVertexId());
         assertEquals(inVertexId, deserialized.getInVertexId());

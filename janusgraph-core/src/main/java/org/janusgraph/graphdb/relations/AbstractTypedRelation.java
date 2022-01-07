@@ -50,7 +50,7 @@ public abstract class AbstractTypedRelation extends AbstractElement implements I
         }
         StandardJanusGraphTx tx = tx();
         InternalRelation next = (InternalRelation) RelationIdentifierUtils.findRelation(
-            RelationIdentifierUtils.get(this, (long) super.id(), tx.isAllowStringVertexId()), tx);
+            RelationIdentifierUtils.get(this, (long) super.id()), tx);
         if (next == null) {
             throw InvalidElementException.removedException(this);
         }
@@ -116,7 +116,7 @@ public abstract class AbstractTypedRelation extends AbstractElement implements I
 
     @Override
     public RelationIdentifier id() {
-        return RelationIdentifierUtils.get(this, (long) super.id(), tx().isAllowStringVertexId());
+        return RelationIdentifierUtils.get(this, (long) super.id());
     }
 
     public long longId() {
