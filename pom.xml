@@ -109,7 +109,7 @@
         <protoc.version>3.15.3</protoc.version>
         <jmh.version>1.33</jmh.version>
         <!-- align with org.apache.solr:solr-solrj -->
-        <jetty.version>9.4.44.v20210927</jetty.version>
+        <jetty.version>11.0.9</jetty.version>
         <log4j2.version>2.17.1</log4j2.version>
     </properties>
     <modules>
