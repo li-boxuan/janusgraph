@@ -25,6 +25,7 @@ public class BenchmarkRunner {
         final ChainedOptionsBuilder builder = new OptionsBuilder()
             .forks(1)
             .measurementTime(TimeValue.seconds(5))
+            .shouldFailOnError(true)
             .warmupIterations(2)
             .warmupTime(TimeValue.seconds(1));
         if (args.length > 0) {
