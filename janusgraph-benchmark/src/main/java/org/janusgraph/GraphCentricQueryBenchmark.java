@@ -51,7 +51,7 @@ import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.HA
 @State(Scope.Benchmark)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class GraphCentricQueryBenchmark {
-    @Param({"10000", "250000"})
+    @Param({"100"})
     int size;
 
     @Param({"true", "false"})

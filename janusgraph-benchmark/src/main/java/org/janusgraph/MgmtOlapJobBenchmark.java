@@ -58,7 +58,7 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class MgmtOlapJobBenchmark {
-    @Param("10000")
+    @Param("100")
     int size;
 
     JanusGraph graph;

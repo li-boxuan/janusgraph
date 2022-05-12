@@ -1,4 +1,4 @@
-# Copyright 2020 JanusGraph Authors
+# Copyright 2022 JanusGraph Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,30 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: CI Index Solr
-
+name: Benchmark
 on:
   pull_request:
     paths-ignore:
-    - 'docs/**'
-    - '.github/workflows/ci-docs.yml'
-    - '.github/ISSUE_TEMPLATE/**'
-    - 'requirements.txt'
-    - 'docs.Dockerfile'
-    - '*.md'
+      - 'docs/**'
+      - '.github/workflows/ci-docs.yml'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'requirements.txt'
+      - 'docs.Dockerfile'
+      - '*.md'
   push:
     paths-ignore:
-    - 'docs/**'
-    - '.github/workflows/ci-docs.yml'
-    - '.github/ISSUE_TEMPLATE/**'
-    - 'requirements.txt'
-    - 'docs.Dockerfile'
-    - '*.md'
+      - 'docs/**'
+      - '.github/workflows/ci-docs.yml'
+      - 'requirements.txt'
+      - 'docs.Dockerfile'
+      - '*.md'
 
 env:
-  ES_JAVA_OPTS: "-Xms256m -Xmx512m"
   BUILD_MAVEN_OPTS: "-DskipTests=true --batch-mode --also-make"
-  VERIFY_MAVEN_OPTS: "-Pcoverage"
 
 jobs:
   build-all:
@@ -52,28 +48,12 @@ jobs:
         with:
           java-version: 1.8
       - run: mvn clean install --projects janusgraph-all -Pjanusgraph-cache -Dmaven.javadoc.skip=true ${{ env.BUILD_MAVEN_OPTS }}
-      - run: mvn verify --projects janusgraph-all -Pjanusgraph-cache ${{ env.VERIFY_MAVEN_OPTS }}
 
-  tests:
-    runs-on: ubuntu-20.04
-    needs: build-all
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - module: solr
-            args: "-Psolr8"
-            name: solr8
-            java: 8
-          - module: es
-            install-args: "-Pjava-11"
-            args: "-Psolr8"
-            name: solr8
-            java: 11
+  benchmark:
+    name: Performance regression check
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-        with:
-          fetch-depth: 2
       - uses: actions/cache@v2
         with:
           path: ~/.m2/repository
@@ -82,13 +62,25 @@ jobs:
             ${{ runner.os }}-maven-
       - uses: actions/setup-java@v1
         with:
-          java-version: ${{ matrix.java }}
-      - run: mvn clean install --projects janusgraph-${{ matrix.module }} ${{ env.BUILD_MAVEN_OPTS }} ${{ matrix.install-args }}
-      - run: mvn verify --projects janusgraph-${{ matrix.module }} ${{ env.VERIFY_MAVEN_OPTS }} ${{ matrix.install-args }} ${{ matrix.args }}
-      - uses: actions/upload-artifact@v2
+          java-version: 1.8
+      - run: mvn clean install -Pjanusgraph-benchmark ${{ env.BUILD_MAVEN_OPTS }} -Dgpg.skip=true
+      - run: mvn verify --projects janusgraph-benchmark
+
+      # Download previous benchmark result from cache (if exists)
+      - name: Download previous benchmark data
+        uses: actions/cache@v1
         with:
-          name: jacoco-reports
-          path: target/jacoco-combined.exec
-      - uses: codecov/codecov-action@v1
+          path: ./cache
+          key: ${{ runner.os }}-benchmark
+
+      # Run `github-action-benchmark` action
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
         with:
-          name: codecov-index-${{ matrix.name }}-java-${{ matrix.java }}
+          tool: 'customSmallerIsBetter'
+          output-file-path: janusgraph-benchmark/benchmark.json
+          external-data-json-path: ./cache/benchmark-data.json
+          fail-on-alert: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          comment-on-alert: true
+          comment-always: true
