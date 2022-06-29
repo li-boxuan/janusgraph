@@ -76,6 +76,11 @@ public class JanusGraphStep<S, E extends Element> extends GraphStep<S, E> implem
         originalStep.getLabels().forEach(this::addLabel);
 
         this.setIteratorSupplier(() -> {
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
             if (this.ids == null) {
                 return Collections.emptyIterator();
             } else if (this.ids.length > 0) {
