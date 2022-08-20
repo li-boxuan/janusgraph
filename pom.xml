@@ -113,7 +113,7 @@
         <testcontainers.version>1.16.0</testcontainers.version>
         <easymock.version>4.2</easymock.version>
         <protobuf.version>3.15.6</protobuf.version>
-        <grpc.version>1.38.1</grpc.version>
+        <grpc.version>1.48.1</grpc.version>
         <protoc.version>3.15.3</protoc.version>
         <jmh.version>1.21</jmh.version>
         <graalvm-nativeimage.version>22.0.0.2</graalvm-nativeimage.version>
