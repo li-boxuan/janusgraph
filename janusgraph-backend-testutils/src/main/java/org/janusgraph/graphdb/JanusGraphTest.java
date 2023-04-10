@@ -7461,8 +7461,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
             element,
             serializer,
             hashKeys,
-            hashLength,
-            graph.getConfiguration().allowStringVertexId()
+            hashLength
         );
 
         BackendTransaction transaction = ((StandardJanusGraphTx) tx).getTxHandle();
@@ -7486,8 +7485,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
             element,
             serializer,
             hashKeys,
-            hashLength,
-            graph.getConfiguration().allowStringVertexId()
+            hashLength
         );
 
         transaction = ((StandardJanusGraphTx) tx).getTxHandle();
@@ -7521,8 +7519,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
             element,
             serializer,
             hashKeys,
-            hashLength,
-            graph.getConfiguration().allowStringVertexId()
+            hashLength
         );
 
         transaction = ((StandardJanusGraphTx) tx).getTxHandle();
@@ -7548,8 +7545,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
             element,
             serializer,
             hashKeys,
-            hashLength,
-            graph.getConfiguration().allowStringVertexId()
+            hashLength
         );
 
         transaction = ((StandardJanusGraphTx) tx).getTxHandle();
@@ -7611,8 +7607,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
             element,
             serializer,
             hashKeys,
-            hashLength,
-            graph.getConfiguration().allowStringVertexId()
+            hashLength
         );
 
         BackendTransaction transaction = ((StandardJanusGraphTx) tx).getTxHandle();
@@ -7708,8 +7703,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
             element,
             serializer,
             hashKeys,
-            hashLength,
-            graph.getConfiguration().allowStringVertexId()
+            hashLength
         );
 
         BackendTransaction transaction = ((StandardJanusGraphTx) tx).getTxHandle();
@@ -7797,8 +7791,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
             element,
             serializer,
             hashKeys,
-            hashLength,
-            graph.getConfiguration().allowStringVertexId()
+            hashLength
         );
 
         BackendTransaction transaction = ((StandardJanusGraphTx) tx).getTxHandle();

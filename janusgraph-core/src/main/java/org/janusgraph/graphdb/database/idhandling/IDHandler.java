@@ -25,6 +25,7 @@ import org.janusgraph.graphdb.database.serialize.DataOutput;
 import org.janusgraph.graphdb.idmanagement.IDManager;
 import org.janusgraph.graphdb.internal.RelationCategory;
 
+import static org.janusgraph.graphdb.database.idhandling.VariableLong.STOP_MASK;
 import static org.janusgraph.graphdb.idmanagement.IDManager.VertexIDType.SystemEdgeLabel;
 import static org.janusgraph.graphdb.idmanagement.IDManager.VertexIDType.SystemPropertyKey;
 import static org.janusgraph.graphdb.idmanagement.IDManager.VertexIDType.UserEdgeLabel;
@@ -196,57 +197,34 @@ public class IDHandler {
         return new StaticBuffer[]{getPrefixed(start), getPrefixed(end)};
     }
 
-    public static void writeVertexId(DataOutput out, Object id, boolean forward, boolean allowStringVertexId) {
-        if (allowStringVertexId && (id instanceof String)) {
-            if (forward) {
-                out.putByte(IDManager.STRING_MARKER);
+    public static void writeVertexId(DataOutput out, Object id, boolean forward) {
+        if (forward) {
+            if (id instanceof String) {
                 VariableString.write(out, id.toString());
             } else {
-                VariableString.writeBackward(out, id.toString());
-                out.putByte(IDManager.STRING_MARKER);
+                VariableLong.writePositive(out, ((Number) id).longValue());
             }
         } else {
-            if (forward) {
-                if (allowStringVertexId) {
-                    out.putByte(IDManager.LONG_MARKER);
-                }
-                VariableLong.writePositive(out, ((Number) id).longValue());
+            if (id instanceof String) {
+                VariableString.writeBackward(out, id.toString());
             } else {
                 VariableLong.writePositiveBackward(out, ((Number) id).longValue());
-                if (allowStringVertexId) {
-                    out.putByte(IDManager.LONG_MARKER);
-                }
             }
         }
     }
 
-    public static Object readVertexId(ReadBuffer in, boolean forward, boolean allowStringVertexId) {
-        if (allowStringVertexId) {
-            if (forward) {
-                final byte marker = in.getByte();
-                final boolean isLong = marker == IDManager.LONG_MARKER;
-                if (isLong) {
-                    return VariableLong.readPositive(in);
-                } else {
-                    assert marker == IDManager.STRING_MARKER;
-                    return VariableString.read(in);
-                }
+    public static Object readVertexId(ReadBuffer in, boolean forward) {
+        int position = forward ? in.getPosition() : in.getPosition() - 1;
+        boolean isStringId = in.getByte(position) == STOP_MASK;
+        if (forward) {
+            if (isStringId) {
+                return VariableString.read(in, true);
             } else {
-                int position = in.getPosition();
-                final byte marker = in.getByte(--position);
-                in.movePositionTo(position);
-                final boolean isLong = marker == IDManager.LONG_MARKER;
-                if (isLong) {
-                    return VariableLong.readPositiveBackward(in);
-                } else {
-                    assert marker == IDManager.STRING_MARKER;
-                    return VariableString.readBackward(in);
-                }
+                return VariableLong.readPositive(in);
             }
         } else {
-            // only long vertex id is allowed, thus there is no need for type marker
-            if (forward) {
-                return VariableLong.readPositive(in);
+            if (isStringId) {
+                return VariableString.readBackward(in);
             } else {
                 return VariableLong.readPositiveBackward(in);
             }

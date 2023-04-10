@@ -17,11 +17,13 @@ package org.janusgraph.graphdb.idmanagement;
 
 import com.google.common.base.Preconditions;
 import org.janusgraph.core.InvalidIDException;
-import org.janusgraph.diskstorage.ReadBuffer;
 import org.janusgraph.diskstorage.StaticBuffer;
 import org.janusgraph.diskstorage.util.BufferUtil;
+import org.janusgraph.graphdb.database.idhandling.IDHandler;
 import org.janusgraph.graphdb.database.idhandling.VariableLong;
 import org.janusgraph.graphdb.database.idhandling.VariableString;
+
+import static org.janusgraph.diskstorage.util.BufferUtil.longSize;
 
 /**
  * Handles the allocation of ids based on the type of element
@@ -38,7 +40,7 @@ public class IDManager {
      *    000 -     * Normal vertices
      *    010 -     * Partitioned vertices
      *    100 -     * Unmodifiable (e.g. TTL'ed) vertices
-     *    110 -     + Reserved for additional vertex type
+     *    110 -     + Special marker indicating it is NOT a long ID
      *      1 - + Invisible
      *     11 -     * Invisible (user created/triggered) Vertex [for later]
      *     01 -     + Schema related vertices
@@ -66,7 +68,7 @@ public class IDManager {
             }
 
             @Override
-            final long suffix() {
+            public final long suffix() {
                 return 0L;
             } // 0b
 
@@ -82,7 +84,7 @@ public class IDManager {
             }
 
             @Override
-            final long suffix() {
+            public final long suffix() {
                 return 0L;
             } // 000b
 
@@ -98,7 +100,7 @@ public class IDManager {
             }
 
             @Override
-            final long suffix() {
+            public final long suffix() {
                 return 2L;
             } // 010b
 
@@ -114,7 +116,7 @@ public class IDManager {
             }
 
             @Override
-            final long suffix() {
+            public final long suffix() {
                 return 4L;
             } // 100b
 
@@ -123,7 +125,22 @@ public class IDManager {
                 return true;
             }
         },
+        SpecialMarker {
+            @Override
+            final long offset() {
+                return 3L;
+            }
 
+            @Override
+            public final long suffix() {
+                return 6L;
+            } // 110b
+
+            @Override
+            final boolean isProper() {
+                return false;
+            }
+        },
         Invisible {
             @Override
             final long offset() {
@@ -131,7 +148,7 @@ public class IDManager {
             }
 
             @Override
-            final long suffix() {
+            public final long suffix() {
                 return 1L;
             } // 1b
 
@@ -147,7 +164,7 @@ public class IDManager {
             }
 
             @Override
-            final long suffix() {
+            public final long suffix() {
                 return 3L;
             } // 11b
 
@@ -163,7 +180,7 @@ public class IDManager {
             }
 
             @Override
-            final long suffix() {
+            public final long suffix() {
                 return 1L;
             } // 01b
 
@@ -179,7 +196,7 @@ public class IDManager {
             }
 
             @Override
-            final long suffix() {
+            public final long suffix() {
                 return 5L;
             } // 101b
 
@@ -195,7 +212,7 @@ public class IDManager {
             }
 
             @Override
-            final long suffix() {
+            public final long suffix() {
                 return 5L;
             } // 0101b
 
@@ -211,7 +228,7 @@ public class IDManager {
             }
 
             @Override
-            final long suffix() {
+            public final long suffix() {
                 return 5L;
             }    // 00101b
 
@@ -227,7 +244,7 @@ public class IDManager {
             }
 
             @Override
-            final long suffix() {
+            public final long suffix() {
                 return 5L;
             }    // 000101b
 
@@ -243,7 +260,7 @@ public class IDManager {
             }
 
             @Override
-            final long suffix() {
+            public final long suffix() {
                 return 37L;
             }    // 100101b
 
@@ -259,7 +276,7 @@ public class IDManager {
             }
 
             @Override
-            final long suffix() {
+            public final long suffix() {
                 return 21L;
             } // 10101b
 
@@ -275,7 +292,7 @@ public class IDManager {
             }
 
             @Override
-            final long suffix() {
+            public final long suffix() {
                 return 21L;
             } // 010101b
 
@@ -291,7 +308,7 @@ public class IDManager {
             }
 
             @Override
-            final long suffix() {
+            public final long suffix() {
                 return 53L;
             } // 110101b
 
@@ -308,7 +325,7 @@ public class IDManager {
             }
 
             @Override
-            final long suffix() {
+            public final long suffix() {
                 return 13L;
             }    // 01101b
 
@@ -325,7 +342,7 @@ public class IDManager {
             }
 
             @Override
-            final long suffix() {
+            public final long suffix() {
                 return 9L;
             }    // 1001b
 
@@ -337,7 +354,7 @@ public class IDManager {
 
         abstract long offset();
 
-        abstract long suffix();
+        public abstract long suffix();
 
         abstract boolean isProper();
 
@@ -402,9 +419,6 @@ public class IDManager {
      * The maximum number of padding bits of any type
      */
     public static final long MAX_PADDING_BITWIDTH = VertexIDType.UserEdgeLabel.offset();
-
-    public static final byte STRING_MARKER = 1;
-    public static final byte LONG_MARKER = 0;
 
     /**
      * Bound on the maximum count for a schema id
@@ -494,15 +508,10 @@ public class IDManager {
     }
 
     public StaticBuffer getKey(Object vertexId) {
-        final byte marker = (vertexId instanceof String) ? STRING_MARKER : LONG_MARKER;
         if (VertexIDType.Schema.is(vertexId)) {
             assert vertexId instanceof Number;
             //No partition for schema vertices
-            if (allowStringVertexId) {
-                return BufferUtil.getLongBufferWithMarker(((Number) vertexId).longValue(), marker);
-            } else {
-                return BufferUtil.getLongBuffer(((Number) vertexId).longValue());
-            }
+            return BufferUtil.getLongBuffer(((Number) vertexId).longValue());
         } else {
             assert isUserVertexId(vertexId);
             if (vertexId instanceof Number) {
@@ -512,29 +521,39 @@ public class IDManager {
                 long count = (long) vertexId>>>(partitionBits+USERVERTEX_PADDING_BITWIDTH);
                 assert count>0;
                 long keyId = (partition<<partitionOffset) | type.addPadding(count);
-                if (allowStringVertexId) {
-                    return BufferUtil.getLongBufferWithMarker(keyId, marker);
-                } else {
-                    return BufferUtil.getLongBuffer(keyId);
-                }
+                return BufferUtil.getLongBuffer(keyId);
             } else if (vertexId instanceof String) {
-                assert allowStringVertexId;
-                return BufferUtil.getStringBufferWithMarker((String) vertexId, marker);
+                if (!allowStringVertexId) {
+                    assert allowStringVertexId;
+                }
+                return BufferUtil.getStringBuffer((String) vertexId);
             } else {
                 throw new IllegalArgumentException("Only long and string types are supported for vertexId: " + vertexId);
             }
         }
     }
 
+    /**
+     * Parse and get vertex ID from static buffer
+     * Historically, JanusGraph only supports long-type ID, so the buffer was assumed to be 8-byte and represent
+     * a long value. To support string-type ID, we use a convention that if the buffer's length is not 8 bytes,
+     * then it's string-type ID. Note that if the string-type ID is 8 bytes, we always append one dummy byte at
+     * the end to make its length not equivalent to 8.
+     *
+     * NOTE: due to design reason, the encoding scheme of long-type ID here is different
+     * from {@link IDHandler}. The encoding scheme of String-type ID here, therefore, is different
+     * from {@link IDHandler}, too. Here we can use the "size == 8" trick to know if the buffer stores
+     * a long or a string, because we know the entire buffer represents the ID, while in {@link IDHandler},
+     * only a (non-fixed) portion of the buffer represents the ID, so we use a different trick there.
+     *
+     * @param b
+     * @return
+     */
     public Object getKeyID(StaticBuffer b) {
-        int position = 0;
-        if (allowStringVertexId && (b.getByte(position++) == STRING_MARKER)) {
-            // id is of string type
-            ReadBuffer readBuffer = b.asReadBuffer();
-            readBuffer.movePositionTo(position);
-            return VariableString.read(readBuffer);
+        if (b.length() != longSize) {
+           return VariableString.read(b.asReadBuffer(), false);
         }
-        long value = b.getLong(position);
+        long value = b.getLong(0);
         if (VertexIDType.Schema.is(value)) {
             return value;
         } else {

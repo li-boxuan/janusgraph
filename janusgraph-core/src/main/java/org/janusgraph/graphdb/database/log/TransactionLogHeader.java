@@ -87,7 +87,7 @@ public class TransactionLogHeader {
         final boolean allowStringVertexId = tx.getGraph().getConfiguration().allowStringVertexId();
         VariableLong.writePositive(out,relations.size());
         for (InternalRelation rel : relations) {
-            IDHandler.writeVertexId(out, rel.getVertex(0).id(), true, allowStringVertexId);
+            IDHandler.writeVertexId(out, rel.getVertex(0).id(), true);
             org.janusgraph.diskstorage.Entry entry = tx.getEdgeSerializer().writeRelation(rel, 0, tx);
             BufferUtil.writeEntry(out,entry);
         }

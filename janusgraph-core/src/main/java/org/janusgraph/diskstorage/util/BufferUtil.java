@@ -24,10 +24,13 @@ import org.janusgraph.diskstorage.StaticBuffer;
 import org.janusgraph.graphdb.database.idhandling.VariableLong;
 import org.janusgraph.graphdb.database.serialize.DataOutput;
 import org.janusgraph.graphdb.database.serialize.Serializer;
+import org.janusgraph.graphdb.idmanagement.IDManager;
 import org.janusgraph.util.encoding.StringEncoding;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
+
+import static org.janusgraph.graphdb.database.idhandling.VariableLong.STOP_MASK;
 
 /**
  * Utility methods for dealing with {@link ByteBuffer}.
@@ -61,12 +64,25 @@ public class BufferUtil {
         return StaticArrayBuffer.of(arr);
     }
 
-    public static StaticBuffer getStringBufferWithMarker(String s, byte marker) {
+    /**
+     * If string is not 8 bytes, then we write it as it is. Otherwise, we write a special
+     * marker at the end, so that when JanusGraph sees the buffer, it knows it should
+     * reinterpret the byte buffer as string buffer. See {@link IDManager#getKeyID(StaticBuffer)}
+     * for more details.
+     *
+     * @param s
+     * @return
+     */
+    public static StaticBuffer getStringBuffer(String s) {
         if (StringUtils.isEmpty(s) || !StringEncoding.isAsciiString(s)) {
             throw new IllegalArgumentException("value must be non-empty ASCII string but received: " + s);
         }
-        ByteBuffer buffer = ByteBuffer.allocate(byteSize + s.length());
-        buffer.put(marker);
+        ByteBuffer buffer;
+        if (s.length() == longSize) {
+            buffer = ByteBuffer.allocate(longSize + byteSize);
+        } else {
+            buffer = ByteBuffer.allocate(s.length());
+        }
         for (int i = 0; i < s.length(); i++) {
             int c = s.charAt(i);
             assert c <= 127;
@@ -74,8 +90,10 @@ public class BufferUtil {
             if (i+1==s.length()) b |= 0x80; //End marker
             buffer.put(b);
         }
+        if (s.length() == longSize) {
+            buffer.put(STOP_MASK);
+        }
         byte[] arr = buffer.array();
-        Preconditions.checkArgument(arr.length == byteSize + s.length());
         return StaticArrayBuffer.of(arr);
     }
 
@@ -84,15 +102,6 @@ public class BufferUtil {
         buffer.putLong(id);
         byte[] arr = buffer.array();
         Preconditions.checkArgument(arr.length == longSize);
-        return StaticArrayBuffer.of(arr);
-    }
-
-    public static StaticBuffer getLongBufferWithMarker(long id, byte marker) {
-        ByteBuffer buffer = ByteBuffer.allocate(byteSize + longSize);
-        buffer.put(marker);
-        buffer.putLong(id);
-        byte[] arr = buffer.array();
-        Preconditions.checkArgument(arr.length == byteSize + longSize);
         return StaticArrayBuffer.of(arr);
     }
 

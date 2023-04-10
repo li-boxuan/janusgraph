@@ -19,6 +19,8 @@ import org.janusgraph.util.encoding.LongEncoding;
 import java.io.Serializable;
 import java.util.Arrays;
 
+import static org.janusgraph.util.encoding.LongEncoding.STRING_MARKER;
+
 /**
  * @author Matthias Broecheler (me@matthiasb.com)
  */
@@ -31,10 +33,6 @@ public final class RelationIdentifier implements Serializable {
     private final long typeId;
     private final long relationId;
     private final Object inVertexId;
-
-    // this does not appear in LongEncoding.BASE_SYMBOLS, so as long as we see this marker,
-    // we know the id must be of string type rather than a string-encoded long type
-    public static final char STRING_MARKER = 'S';
 
     private RelationIdentifier() {
         outVertexId = null;

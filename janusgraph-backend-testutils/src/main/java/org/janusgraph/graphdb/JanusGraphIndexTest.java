@@ -3546,7 +3546,7 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
         BackendTransaction transaction = ((StandardJanusGraphTx) tx).getTxHandle();
         IndexTransaction indexTransaction = transaction.getIndexTransaction(index.getBackingIndexName());
 
-        String elementIndexId = IndexRecordUtil.element2String(edge.id(), false);
+        String elementIndexId = IndexRecordUtil.element2String(edge.id());
         String nameIndexField = IndexRecordUtil.key2Field(index, managementSystem.getPropertyKey(namePropKeyStr));
         String ageIndexField = IndexRecordUtil.key2Field(index, managementSystem.getPropertyKey(agePropKeyStr));
 
@@ -3989,7 +3989,7 @@ public abstract class JanusGraphIndexTest extends JanusGraphBaseTest {
         BackendTransaction transaction = ((StandardJanusGraphTx) tx).getTxHandle();
         IndexTransaction indexTransaction = transaction.getIndexTransaction(index.getBackingIndexName());
 
-        String elementIndexId = IndexRecordUtil.element2String(edgeId, false);
+        String elementIndexId = IndexRecordUtil.element2String(edgeId);
         String nameIndexField = IndexRecordUtil.key2Field(index, managementSystem.getPropertyKey(namePropKeyStr));
 
         assertEquals(0, graph.indexQuery(indexName, nameIndexField+":"+nameValue).edgeTotals());

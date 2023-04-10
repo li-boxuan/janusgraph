@@ -113,10 +113,10 @@ public class EdgeSerializer implements RelationReader {
             Object otherVertexId;
             if (multiplicity.isConstrained()) {
                 if (multiplicity.isUnique(dir)) {
-                    otherVertexId = IDHandler.readVertexId(in, true, allowStringVertexId);
+                    otherVertexId = IDHandler.readVertexId(in, true);
                 } else {
                     in.movePositionTo(data.getValuePosition());
-                    otherVertexId = IDHandler.readVertexId(in, false, allowStringVertexId);
+                    otherVertexId = IDHandler.readVertexId(in, false);
                     in.movePositionTo(data.getValuePosition());
                 }
                 relationId = VariableLong.readPositive(in);
@@ -124,7 +124,7 @@ public class EdgeSerializer implements RelationReader {
                 in.movePositionTo(data.getValuePosition());
 
                 relationId = VariableLong.readPositiveBackward(in);
-                otherVertexId = IDHandler.readVertexId(in, false, allowStringVertexId);
+                otherVertexId = IDHandler.readVertexId(in, false);
                 endKeyPos = in.getPosition();
                 in.movePositionTo(data.getValuePosition());
             }
@@ -275,14 +275,14 @@ public class EdgeSerializer implements RelationReader {
             if (multiplicity.isConstrained()) {
                 if (multiplicity.isUnique(dir)) {
                     valuePosition = out.getPosition();
-                    IDHandler.writeVertexId(out, otherVertexId, true, allowStringVertexId);
+                    IDHandler.writeVertexId(out, otherVertexId, true);
                 } else {
-                    IDHandler.writeVertexId(out, otherVertexId, false, allowStringVertexId);
+                    IDHandler.writeVertexId(out, otherVertexId, false);
                     valuePosition = out.getPosition();
                 }
                 VariableLong.writePositive(out, relationId);
             } else {
-                IDHandler.writeVertexId(out, otherVertexId, false, allowStringVertexId);
+                IDHandler.writeVertexId(out, otherVertexId, false);
                 VariableLong.writePositiveBackward(out, relationId);
                 valuePosition = out.getPosition();
             }
@@ -449,8 +449,8 @@ public class EdgeSerializer implements RelationReader {
                         VariableLong.writePositiveBackward(colEnd, (Long) interval.getEnd());
                     } else if (propertyKey==ImplicitKey.ADJACENT_ID) {
                         assert !type.multiplicity().isUnique(dir);
-                        IDHandler.writeVertexId(colStart, interval.getStart(), false, allowStringVertexId);
-                        IDHandler.writeVertexId(colEnd, interval.getEnd(), false, allowStringVertexId);
+                        IDHandler.writeVertexId(colStart, interval.getStart(), false);
+                        IDHandler.writeVertexId(colEnd, interval.getEnd(), false);
                     } else {
                         writeInline(colStart, propertyKey, interval.getStart(), InlineType.KEY);
                         writeInline(colEnd, propertyKey, interval.getEnd(), InlineType.KEY);
