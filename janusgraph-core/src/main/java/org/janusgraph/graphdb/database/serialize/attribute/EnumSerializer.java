@@ -40,7 +40,7 @@ public class EnumSerializer<E extends Enum> implements OrderPreservingSerializer
 
     @Override
     public E read(ScanBuffer buffer) {
-        return getValue(VariableLong.readPositive(buffer));
+        return getValue(VariableLong.readNonNegative(buffer));
     }
 
     @Override

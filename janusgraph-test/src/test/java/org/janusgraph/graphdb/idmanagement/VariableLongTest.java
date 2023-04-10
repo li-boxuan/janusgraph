@@ -191,7 +191,7 @@ public class VariableLongTest {
 
         @Override
         public long read(ReadBuffer in) {
-            return VariableLong.readPositive(in);
+            return VariableLong.readNonNegative(in);
         }
     }
 
@@ -217,12 +217,12 @@ public class VariableLongTest {
 
         @Override
         public void write(WriteBuffer out, long value) {
-            VariableLong.writePositiveBackward(out,value);
+            VariableLong.writeNonNegativeBackward(out,value);
         }
 
         @Override
         public int length(long value) {
-            return VariableLong.positiveBackwardLength(value);
+            return VariableLong.nonNegativeBackwardLength(value);
         }
 
         @Override
@@ -292,7 +292,7 @@ public class VariableLongTest {
             for (int i=0;i<2;i++) {
                 l[i] = randomPosLong(scalingFactors[random.nextInt(scalingFactors.length)]);
                 WriteBuffer out = new WriteByteBuffer(11);
-                VariableLong.writePositiveBackward(out,l[i]);
+                VariableLong.writeNonNegativeBackward(out,l[i]);
                 b[i]=out.getStaticBuffer();
                 ReadBuffer res = b[i].asReadBuffer();
                 res.movePositionTo(res.length());

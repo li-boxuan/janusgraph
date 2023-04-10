@@ -88,10 +88,10 @@ public class ManagementLogger implements MessageReader {
         Preconditions.checkNotNull(logType);
         switch (logType) {
             case CACHED_TYPE_EVICTION: {
-                long evictionId = VariableLong.readPositive(in);
-                long numEvictions = VariableLong.readPositive(in);
+                long evictionId = VariableLong.readNonNegative(in);
+                long numEvictions = VariableLong.readNonNegative(in);
                 for (int i = 0; i < numEvictions; i++) {
-                    long typeId = VariableLong.readPositive(in);
+                    long typeId = VariableLong.readNonNegative(in);
                     schemaCache.expireSchemaElement(typeId);
                     for (JanusGraphTransaction tx : graph.getOpenTransactions()) {
                         tx.expireSchemaElement(typeId);
@@ -106,7 +106,7 @@ public class ManagementLogger implements MessageReader {
             }
             case CACHED_TYPE_EVICTION_ACK: {
                 String receiverId = serializer.readObjectNotNull(in, String.class);
-                long evictionId = VariableLong.readPositive(in);
+                long evictionId = VariableLong.readNonNegative(in);
                 if (receiverId.equals(graph.getConfiguration().getUniqueGraphId())) {
                     //Acknowledgements targeted at this instance
                     EvictionTrigger evictTrigger = evictionTriggerMap.get(evictionId);

@@ -90,9 +90,15 @@ public class VariableLong {
        ################################## */
 
 
-    public static long readPositive(ScanBuffer in) {
+    public static long readNonNegative(ScanBuffer in) {
         long value = readUnsigned(in);
         assert value >= 0;
+        return value;
+    }
+
+    public static long readPositive(ScanBuffer in) {
+        long value = readUnsigned(in);
+        assert value > 0;
         return value;
     }
 
@@ -214,17 +220,24 @@ public class VariableLong {
     ################################## */
 
     public static void writePositiveBackward(WriteBuffer out, long value) {
+        assert value > 0;
+        writeUnsignedBackward(out,value);
+    }
+
+    public static void writeNonNegativeBackward(WriteBuffer out, long value) {
         assert value >= 0;
         writeUnsignedBackward(out,value);
     }
 
-    public static int positiveBackwardLength(long value) {
+    public static int nonNegativeBackwardLength(long value) {
         assert value >= 0;
         return unsignedBackwardLength(value);
     }
 
     public static long readPositiveBackward(ReadBuffer in) {
-        return readUnsignedBackward(in);
+        long value = readUnsignedBackward(in);
+        assert value > 0;
+        return value;
     }
 
     /* ##################################

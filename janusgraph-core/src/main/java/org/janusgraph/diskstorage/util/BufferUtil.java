@@ -126,7 +126,7 @@ public class BufferUtil {
     }
 
     public static StaticBuffer readBuffer(ScanBuffer in) {
-        long length = VariableLong.readPositive(in);
+        long length = VariableLong.readNonNegative(in);
         Preconditions.checkArgument(length>=0 && length<=Integer.MAX_VALUE);
         byte[] data = in.getBytes((int)length);
         assert data.length==length;

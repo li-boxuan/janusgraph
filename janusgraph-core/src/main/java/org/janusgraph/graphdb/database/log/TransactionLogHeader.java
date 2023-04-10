@@ -162,7 +162,7 @@ public class TransactionLogHeader {
     public static Entry parse(StaticBuffer buffer, Serializer serializer, TimestampProvider times) {
         ReadBuffer read = buffer.asReadBuffer();
         Instant txTimestamp = times.getTime(read.getLong());
-        TransactionLogHeader header = new TransactionLogHeader(VariableLong.readPositive(read),
+        TransactionLogHeader header = new TransactionLogHeader(VariableLong.readNonNegative(read),
                 txTimestamp, times);
         LogTxStatus status = serializer.readObjectNotNull(read,LogTxStatus.class);
         final EnumMap<LogTxMeta,Object> metadata = new EnumMap<>(LogTxMeta.class);
@@ -235,10 +235,10 @@ public class TransactionLogHeader {
         }
 
         private static List<Modification> readModifications(Change state, ReadBuffer in, Serializer serializer) {
-            long size = VariableLong.readPositive(in);
+            long size = VariableLong.readNonNegative(in);
             List<Modification> mods = new ArrayList<>((int) size);
             for (int i = 0; i < size; i++) {
-                long vid = VariableLong.readPositive(in);
+                long vid = VariableLong.readNonNegative(in);
                 org.janusgraph.diskstorage.Entry entry = BufferUtil.readEntry(in,serializer);
                 mods.add(new Modification(state,vid,entry));
             }

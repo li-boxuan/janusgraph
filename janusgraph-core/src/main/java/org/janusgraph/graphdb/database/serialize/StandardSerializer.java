@@ -308,7 +308,7 @@ public class StandardSerializer implements AttributeHandler, Serializer {
 
     @Override
     public Object readClassAndObject(ScanBuffer buffer) {
-        long registrationNo = VariableLong.readPositive(buffer);
+        long registrationNo = VariableLong.readNonNegative(buffer);
         if (registrationNo==0) return null;
         Class datatype = getDataType((int)registrationNo);
         return readObjectNotNullInternal(buffer, datatype, false);
@@ -464,7 +464,7 @@ public class StandardSerializer implements AttributeHandler, Serializer {
 
         @Override
         public Class read(ScanBuffer buffer) {
-            return getClass(VariableLong.readPositive(buffer));
+            return getClass(VariableLong.readNonNegative(buffer));
         }
 
         private Class getClass(long registrationNo) {

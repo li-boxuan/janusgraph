@@ -100,7 +100,7 @@ public class StringSerializer implements OrderPreservingSerializer<String>, Supp
 
     @Override
     public String read(ScanBuffer buffer) {
-        long length = VariableLong.readPositive(buffer);
+        long length = VariableLong.readNonNegative(buffer);
         if (length==0) return null;
 
         long compressionId = length & COMPRESSOR_BIT_MASK;
