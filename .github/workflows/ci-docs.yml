@@ -87,7 +87,7 @@ jobs:
             --menu.js-url="https://raw.githubusercontent.com/JanusGraph/janusgraph/master/docs/theme/structor-menu.js.gotmpl" 
             --exp-branch=master --debug
       - run: sudo chown -R $(id -u):$(id -g) .
-      - uses: JamesIves/github-pages-deploy-action@4.0.0-beta-01
+      - uses: JamesIves/github-pages-deploy-action@v4.6.0
         with:
           ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
           REPOSITORY_NAME: JanusGraph/docs.janusgraph.org
